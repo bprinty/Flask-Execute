@@ -6,14 +6,5 @@ API
 Base
 ----
 
-.. autoclass:: flask_plugin.plugin.Plugin
+.. autoclass:: flask_celery.Celery
    :members:
-
-
-
-Databse Mixins
---------------
-
-.. autoclass:: flask_plugin.mixins.ExampleMixin
-   :members:
-
