@@ -45,7 +45,7 @@ project_root = os.path.dirname(cwd)
 # version is used.
 sys.path.insert(0, project_root)
 
-from flask_plugin import __author__, __pkg__, __version__, __info__
+from flask_celery import __author__, __pkg__, __version__, __info__
 
 # -- General configuration ---------------------------------------------
 
