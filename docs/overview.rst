@@ -14,6 +14,11 @@ Other features of the plugin include:
 
 The Flask `documentation <https://flask.palletsprojects.com/en/1.1.x/patterns/celery/>`_ details how to configure Celery with Flask without this plugin, and readers are encouraged to check out that documentation before working with this plugin.
 
+.. Other alternatives to consider when choosing an execution engine for your app are:
+..
+..   * `Flask-Dask <https://flask-dask.readthedocs.io/en/latest/>`_
+..   * `Flask-Executor <https://flask-executor.readthedocs.io/en/latest/>`_
+
 
 A Minimal Application
 ---------------------
@@ -55,7 +60,7 @@ Once the plugin has been registered, you can submit a task using:
 
 Note that this plugin does not require users to pre-register tasks via the ``@celery.task`` decorator. This enables developers to more easily control whether or not task execution happens within the current session or on a separate worker. It also makes the API similar to the API provided by `Dask <https://docs.dask.org/en/latest/>`_ and `concurrent.futures <https://docs.python.org/3/library/concurrent.futures.html>`_.
 
-Another thing to note is that there is no need to create a ``ContextTask`` wrapper for celery with this module. All celery processes are automatically wrapped with a fresh application context, and the current task can be accessed via the ``current_task`` proxy.
+Another thing to note is that there is no need to create a contextual Celery ``Task`` wrapper with the application context with this extension. All celery processes are automatically wrapped with a fresh application context, and the current task can be accessed via the ``current_task`` proxy.
 
 This plugin can also be configured to manage the process of starting local workers the first time a task is submitted. If you want to run workers locally, you can have the application spin up workers via the  ``CELERY_START_LOCAL_WORKERS=True`` configuration option. This is particularly useful during development, where developers no longer need to manually spin up celery workers to run the application in development mode.
 
