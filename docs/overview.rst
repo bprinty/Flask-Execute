@@ -6,11 +6,11 @@ Flask-Celery is a plugin aimed at simplifying the process of configuring Celery 
 
 Other features of the plugin include:
 
-* Automatic spin-up of local workers via configuration.
+* Automatic spin-up of local workers, queues, and scheduling via configuration.
 * Automatic application context wrapping for celery workers.
-* Simpler API for submitting tasks to workers.
+* Simpler API for submitting tasks to workers that doesn't require pre-registration of tasks.
 * Result object API similar to ``concurrent.futures.Future`` API.
-* Flask CLI commands for status checking, spinning up workers, worker cluster, and `flower <https://flower.readthedocs.io/en/latest/>`_ monitor.
+* Flask CLI commands for status checking, spinning up workers, a worker cluster, and `flower <https://flower.readthedocs.io/en/latest/>`_ monitor.
 
 The Flask `documentation <https://flask.palletsprojects.com/en/1.1.x/patterns/celery/>`_ details how to configure Celery with Flask without this plugin, and readers are encouraged to check out that documentation before working with this plugin.
 
@@ -31,7 +31,6 @@ To set up an application with the extension, you can register the application di
     from flask_celery import Celery
 
     app = Flask(__name__)
-    app.config.from_object(Config)
     plugin = Celery(app)
 
 
@@ -41,7 +40,6 @@ Or, via factory pattern:
 
     celery = Celery()
     app = Flask(__name__)
-    app.config.from_object(Config)
     celery.init_app(app)
 
 
@@ -58,10 +56,17 @@ Once the plugin has been registered, you can submit a task using:
     future.result(timeout=1)
 
 
-Note that this plugin does not require users to pre-register tasks via the ``@celery.task`` decorator. This enables developers to more easily control whether or not task execution happens within the current session or on a separate worker. It also makes the API similar to the API provided by `Dask <https://docs.dask.org/en/latest/>`_ and `concurrent.futures <https://docs.python.org/3/library/concurrent.futures.html>`_.
+Note that this plugin does not require users to pre-register tasks via the ``@celery.task`` decorator. This enables developers to more easily control whether or not task execution happens within the current session or on a separate worker. It also makes the API similar to the API provided by `Dask <https://docs.dask.org/en/latest/>`_ and `concurrent.futures <https://docs.python.org/3/library/concurrent.futures.html>`_. Also note that the ``celery`` command-line tool for spinning up local workers is no longer necessary. If no workers are connected, this plugin will automatically spin them up the first time a ``celery.submit()`` call is made.
 
-Another thing to note is that there is no need to create a contextual Celery ``Task`` wrapper with the application context with this extension. All celery processes are automatically wrapped with a fresh application context, and the current task can be accessed via the ``current_task`` proxy.
+Once a task as been submitted, you can monitor the state via:
 
-This plugin can also be configured to manage the process of starting local workers the first time a task is submitted. If you want to run workers locally, you can have the application spin up workers via the  ``CELERY_START_LOCAL_WORKERS=True`` configuration option. This is particularly useful during development, where developers no longer need to manually spin up celery workers to run the application in development mode.
+.. code-block:: python
+
+    task_id = future.id
+
+    # later in code
+
+    future = celery.get(task_id)
+    print(future.state)
 
 For more in-depth discussion on design considerations and how to fully utilize the plugin, see the `User Guide <./usage.html>`_.
