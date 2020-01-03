@@ -8,7 +8,15 @@ The sections below detail how to fully use this module, along with context for d
 Why is this Necessary?
 ----------------------
 
-If you've configured Flask to use Celery before, you're likely wondering why this extension is necessary. The truth is that this package is not necessary - you can still configure your application to use celery directly according to the Flask documentation. This package is functionally a wrapper around configuring celery that does a few specific things:
+If you've configured Flask to use Celery before, you may have run into the motivating factor behind the creation of this package - it's not particularly straightforward to either 1) connect celery workers to a flask instance, 2) wrap celery workers in a flask application context, 3) use the application factory pattern alongside a celery configuration, or 4) manage starting workers in development mode. Like other Flask extensions, configuration for an external tool should be as simple as instantiating the extension and registering the Flask application:
+
+.. code-block:: python
+
+    app = Flask()
+    celery = Celery(app)
+
+
+This package is functionally a wrapper around the process of configuring celery that resolves the annoyances listed above and adds the following additional functionality:
 
 1. Removes the need to manually start local celery workers and configure celery ``Tasks`` with separate application contexts.
 2. Provides simpler worker and queue configuration (related to 1).
@@ -16,7 +24,45 @@ If you've configured Flask to use Celery before, you're likely wondering why thi
 4. Homogenizes the API for interacting with tasks with other execution tools like ``concurrent.futures`` and ``Dask``.
 5. Allows developers to dynamically submit tasks to Celery, instead of developers needing to pre-register tasks to run on workers.
 
-These things simplify the process of configuring Celery to work with Flask and make working with Celery a more enjoyable experience.
+
+The features listed above simplify the process of configuring Celery to work with Flask and make working with Celery a more enjoyable experience. If you don't agree with those sentiments or like the way Celery historically has been configured with Flask applications, feel free to ignore the rest of this documentation. This extension isn't necessary for configuring your application to use celery, just like ``Flask-SQLAlchemy`` isn't necessary for configuring your application to use ``SQLAlchemy``.
+
+
+Registration
+------------
+
+As mentioned in the overview section of the documentation, to configure your application to use Celery via this extension you can register it directly:
+
+.. code-block:: python
+
+    from flask import Flask
+    from flask_celery import Celery
+
+    app = Flask(__name__)
+    plugin = Celery(app)
+
+
+Or, via the application factory pattern:
+
+.. code-block:: python
+
+    celery = Celery()
+    app = Flask(__name__)
+    celery.init_app(app)
+
+
+That's it! all of the other tedium around wrapping tasks in an application context, creating a ``make_celery`` function, or pre-registering tasks is no longer necessary. Additionally, you don't need to manually use the ``celery`` CLI tool to start workers if your workers are meant to run on the server the application is running. This package will automatically spin them up the first time an executable is sent to the workers. More fine-grained control over worker configuration and command-line extensions this tool provides is detailed later in the documentation.
+
+Once this extension has been registered with the application, you can submit tasks to workers via ``celery.submit()``:
+
+.. code-block:: python
+
+    def add(x, y):
+      return x + y
+
+    celery.submit(add, 1, 2)
+
+More information on task execution and other tools the ``Celery`` object provides is detailed below.
 
 
 Task Execution
@@ -74,6 +120,17 @@ If you like the declarative syntax celery uses to register tasks, you can still 
 
 This declarative mechanism for registering tasks is particularly useful for scheduling tasks to run periodically via Celery's ``cron`` tool.
 
+This module also provides a wrapper around scheduling tasks to make the process a bit more intuitive. Here's how you schedule a task to run every night at midnight.
+
+.. code-block:: python
+
+    @celery.schedule(hour=0, minute=0)
+    def scheduled_task():
+      # do something ...
+      return
+
+You can also schedule tasks via configuration. For more information, see the `Configuration`_ section of the documentation.
+
 
 Working with Futures
 ++++++++++++++++++++
@@ -121,6 +178,19 @@ Finally, you can also add a callback to be executed when the task finishes runni
 
 This will ensure that the specified callback function is automatically executed when the task returns a ``done`` status.
 
+If you have the task ID (obtained via ``Future.id``), you can query a task Future via:
+
+.. code-block:: python
+
+    >>> future = celery.submit(add, 1, 2)
+    >>> task_id = future.id
+
+    # later in code ...
+
+    >>> future = celery.get(task_id)
+    >>> future.done()
+    False
+
 
 Status Updates
 ++++++++++++++
@@ -151,10 +221,7 @@ More information about the ``update_state`` method or ``Task`` objects can be fo
 Writing Safe Code
 +++++++++++++++++
 
-As with any program that does...., developers must be congnizant of how data is sent to remote executors
-
-
-In general, try to write thread-safe code when working on functions that might be sent to celery workers. Some recommendations are as follows:
+As with any program that executes code across multiple threads or processes, developers must be congnizant of how IO is managed at the boundaries across separate application contexts (i.e. how data are passed to and returned from functions). In general, try to write thread-safe code when working on functions that might be sent to celery workers. Some recommendations are as follows:
 
 * Don't pass instantiated SQLAlchemy objects or file streams as arguments to functions. Instead, pass in references (primary keys or other identifiers) to the objects you want to use and query them from within the function before executing other logic.
 
@@ -166,6 +233,8 @@ In general, try to write thread-safe code when working on functions that might b
 
 * If external libraries are used, import the external libraries within functions using them.
 
+
+If you run into an issue sending data back and forth to executors, feel free to file a question in the GitHub Issue Tracker for this project.
 
 
 Celery Configuration
@@ -228,10 +297,7 @@ If you're using a factory pattern (i.e. with a ``create_app`` function) to creat
 Workers
 +++++++
 
-With this extension, you also have control over worker configuration used to start celery
-
-
-the names of workers and other celery options that can be passed to workers on setup. For example, to configure your application to use a specific number of workers or specific worker names, use:
+With this extension, you also have control over how workers are initialized via configuration. For example, to configure your application to use a specific number of workers or specific worker names, use:
 
 .. code-block:: python
 
@@ -281,26 +347,74 @@ For more information on the parameters available for configuring celery workers,
 Queues
 ++++++
 
-As alluded to above, you can configure workers to use specific queues.
+As alluded to above, you can configure workers to subscribe to specific queues. This extension will automatically detect queues references in worker configuration, and will set them up for you. With this, there's no need to manually specify ``task_routes``, because tasks within this module can be dynamically sent to specific queues, instead of pre-registered as always needing to execute on a specific queue.
 
-TODO THIS
-
-
-To manage multiple queues with this extension ....
+For example, to configure your application with two workers that execute from two different queues, use the following configuration:
 
 .. code-block:: python
 
     class Config:
-      CELERY_QUEUES = ['low-priority', 'high-priority']
+      CELERY_WORKERS = {
+        # worker for priority items
+        'foo': {
+          'queues': ['low-priority', 'high-priority']
+        },
 
+        # worker for high-priority tasks only
+        'bar': {
+          'queues': ['high-priority']
+        }
 
-To submit a task to a specific queue, use the following syntax with ``submit()``:
+        # worker for any task
+        'baz': {}
+      }
+
+Once the queues have been defined for workers, you can submit a task to a specific queue use the following syntax with ``submit()``:
 
 .. code-block:: python
 
+    # submit to default queue
+    >>> celery.submit(add, 1, 2)
+
+    # submit to high priority queue
     >>> celery.submit(add, 1, 2, queue='high-priority')
 
-If using the queues mechanism provided by this extension, the ``queue`` keyword will be reserved on function calls. Accordingly, developers should be careful not to use that argument for functions that can be submitted to an executor.
+With this syntax, the ``queue`` keyword will be reserved on function calls. Accordingly, developers should be careful not to use that argument for functions that can be submitted to an executor.
+
+
+Scheduling
+++++++++++
+
+Earlier in the documentation, we saw that we could schedule tasks via the ``celery.schedule`` decorator:
+
+.. code-block:: python
+
+    # no arguments
+    @celery.schedule(hour=0, minute=0)
+    def ping():
+      return 'pong'
+
+    # arguments
+    @celery.schedule(hour=0, minute=0, args=(1, 2))
+    def add(x, y):
+      return x + y
+
+To schedule specific tasks via configuration, use the following syntax:
+
+.. code-block:: python
+
+    class Config:
+      CELERY_SCHEDULE = {
+        'app.tasks.add': {
+          'schedule': {'hour': 0, 'minute': 0},
+          'args': (1, 2)
+        },
+        'app.tasks.multiply': {
+          'schedule': 60 # run every minute
+        }
+      }
+
+This is slightly different than the ``CELERYBEAT_SCHEDULE`` syntax in Celery configuration, for the purpose of simplifying the developer experience for task scheduling. Under the hood, these inputs are converted to that syntax. If you've registered tasks via ``celery.task``, you can use the Celery ``CELERYBEAT_SCHEDULE`` syntax.
 
 
 Monitoring Tools
@@ -351,9 +465,7 @@ Note that all of this inspection information is available via the ``Flower`` mon
 Command-Line Extensions
 -----------------------
 
-One of the more helpful features this plugin provides is automatic registration of cli entry points for managing celery.
-
-MORE INFORMATION
+One of the more helpful features this plugin provides is automatic registration of cli entry points for managing celery. These entry points help developers spin up individual celery workers or a cluster of workers, check worker status, and spin up the celery Flower tool with the application context detected from the ``flask CLI``.
 
 
 ``status``
@@ -364,24 +476,31 @@ Query the status of all celery workers and submit a simple task to celery.
 .. code-block:: bash
 
     ~$ flask celery status
+    {
+      "ping": true,
+      "workers": {
+        "foo@localhost": "OK",
+        "bar@localhost": "OK"
+      }
+    }
 
 
 ``worker``
 ++++++++++
 
-Spin up local worker with specific name.
+Spin up local worker with specific name. If all workers referenced in configuration are currently running, this extension will start a new worker with a unique name. Without the ``-n`` argument, ``flask celery worker`` attempts to start the first worker listed in configuration.
 
 .. code-block:: bash
 
-    ~$ flask celery worker -n worker1
-    {
-      "ping": true,
-      "workers": {
-        "foo@localhost": "OK",
-        "bar@localhost": "OK",
-        "baz@localhost": "OK"
-      }
-    }
+    # start celery in foreground
+    ~$ flask celery worker -n foo
+
+To daemonize this process, use the ``-d`` argument (this argument also works with other entry points that start a running service in the foreground):
+
+.. code-block:: bash
+
+    # start celery in background
+    ~$ flask celery worker -n bar -d
 
 
 ``flower``
@@ -391,13 +510,14 @@ Spin up `Flower <https://flower.readthedocs.io/en/latest/>`_ monitor for dashboa
 
 .. code-block:: bash
 
+    # flower started in foreground
     ~$ flask celery flower
 
 
 ``cluster``
 ++++++++++
 
-Spin up all local workers referenced in configuration, along with Flower monitor.
+Spin up all local workers referenced in configuration, along with Flower monitor. This is useful for spinning up Celery in production if all listed workers are running on the same server.
 
 .. code-block:: bash
 
@@ -438,7 +558,7 @@ The code below details how you can override all of these configuration options:
 .. code-block:: python
 
     from flask import Flask
-    from flask_plugin import Plugin
+    from flask_celery import Celery
     from werkzeug.exceptions import HTTPException
 
     app = Flask(__name__)
