@@ -7,104 +7,100 @@
 
 # imports
 # -------
-import pytest
-import factory
-from flask import Flask, request, jsonify
-from werkzeug.exceptions import NotFound
+from flask import Flask, Blueprint, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_plugin import Plugin
+
+from flask_celery import Celery, current_task
 
 from . import SANDBOX
 
+# plugins
+# -------
+db = SQLAlchemy()
+celery = Celery()
+api = Blueprint('api', __name__)
 
-# application
-# -----------
-class Config(object):
-    ENV = 'testing'
-    TESTING = True
+
+# configs
+# -------
+class Config:
     SQLALCHEMY_ECHO = False
     PROPAGATE_EXCEPTIONS = False
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///{}/app.db'.format(SANDBOX)
-    PLUGIN_DEFAULT_VARIABLE = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///{}/dev.db'.format(SANDBOX)
 
 
-app = Flask(__name__)
-app.config.from_object(Config)
-db = SQLAlchemy(app)
-plugin = Plugin(app)
+class DevConfig(Config):
+    ENV = 'development'
+    CELERY_WORKERS = ['foo', 'bar']
 
 
-@app.route('/items', methods=['GET', 'POST'])
-def all():
-    if request.method == 'GET':
-        items = db.session.query(Item).all()
-        return jsonify([dict(id=x.id, name=x.name) for x in items]), 200
+class TestConfig(Config):
+    ENV = 'testing'
+    CELERY_ALWAYS_EAGER = True
 
-    elif request.method == 'POST':
-        item = Item(**request.json)
-        db.session.add(item)
-        db.session.commit()
-        return jsonify(id=item.id, name=item.name), 200
 
+# factory
+# -------
+def create_app(env='development'):
+    """
+    Application factory to use for spinning up development
+    server tests.
+    """
+    if env == 'development':
+        config = DevConfig
+    elif env == 'testing':
+        config = TestConfig
+
+    app = Flask(__name__)
+    app.config.from_object(config)
+    db.init_app(app)
+    celery.init_app(app)
+    app.register_blueprint(api)
+    return app
+
+
+# functions
+# ---------
+def sleep(n=5):
+    import time
+    for count in range(n):
+        time.sleep(0.1)
     return
 
 
-@app.route('/items/<int:ident>', methods=['GET', 'PUT', 'DELETE'])
-def one(ident):
-    item = db.session.query(Item).filter_by(id=ident).first()
-    if not item:
-        raise NotFound
+def add(*args):
+    from functools import reduce
+    import time
+    time.sleep(0.1)
+    return reduce(lambda x, y: x + y, args)
 
-    if request.method == 'GET':
-        return jsonify(id=item.id, name=item.name), 200
 
-    elif request.method == 'PUT':
-        for key, value in request.json.items():
-            setattr(item, key, value)
-        db.session.commit()
-        return jsonify(id=item.id, name=item.name), 200
+def fail():
+    raise AssertionError('fail')
 
-    elif request.method == 'DELETE':
-        db.session.delete(item)
-        db.session.commit()
 
-    return
+# endpoints
+# ---------
+@api.route('/submit', methods=['POST'])
+def submit():
+    pool = celery.map(
+        [add, 1, 2],
+        [add, 3, 4],
+        [sleep]
+    )
+    return jsonify([future for future in pool])
+
+
+@api.route('/monitor/<ident>', methods=['GET'])
+def monitor(ident):
+    return jsonify(status=celery.get(ident).status)
 
 
 # models
 # ------
-class Item(db.Model):
-    __tablename__ = 'item'
+class Task(db.Model):
+    __tablename__ = 'tasks'
 
     # basic
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False, unique=True, index=True)
-
-
-# factories
-# ---------
-class ItemFactory(factory.alchemy.SQLAlchemyModelFactory):
-
-    id = factory.Sequence(lambda x: x + 100)
-    name = factory.Faker('name')
-
-    class Meta:
-        model = Item
-        sqlalchemy_session = db.session
-
-
-# fixtures
-# --------
-@pytest.fixture(scope='session')
-def items(client):
-
-    # roles
-    items = [
-        ItemFactory.create(name='one'),
-        ItemFactory.create(name='two'),
-        ItemFactory.create(name='three')
-    ]
-
-    yield items
-
-    return
+    status = db.Column(db.String)
