@@ -9,4 +9,4 @@ __version__ = '0.1.0'
 
 
 from .mixins import ExampleMixin      ## noqa
-from .plugin import Plugin            ## noqa
+from .plugin import Celery            ## noqa
