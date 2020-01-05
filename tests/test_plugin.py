@@ -7,23 +7,133 @@
 
 # imports
 # -------
-from .fixtures import ItemFactory
+from .fixtures import add, sleep, fail, celery
+
+from flask_celery.plugin import Future, FuturePool
 
 
 # session
 # -------
-class TestBasic(object):
+class TestSubmit:
 
-    def test_query_existing(self, client, items):
-        response = client.get('/items/{}'.format(items[0].id))
-        assert response.status_code == 200
-        assert response.json['name'] == items[0].name
+    def test_submit(self, celery):
+        future = celery.submit(add, 1, 2)
+        result = future.result(timeout=1)
+        assert isinstance(future, Future)
+        assert result == 3
         return
 
-    def test_query_new(self, client):
-        # other open read permissions
-        item = ItemFactory.create(name='test')
-        response = client.get('/items/{}'.format(item.id))
+    def test_map(self, celery):
+        pool = celery.map([[add, 1, 2], [add, 3, 4], [add, 5, 6]])
+        results = pool.result(timeout=1)
+        assert isinstance(pool, FuturePool)
+        assert results == [3, 7, 11]
+        return
+
+
+class TestFuture:
+
+    def test_cancel():
+        future = celery.submit(sleep, 3)
+        assert future.running()
+        assert not future.done()
+        assert not future.cancelled()
+        future.status ## ??
+
+        future.cancel()
+        assert future.cancelled()
+        assert future.done()
+        assert not future.running()
+        future.status ## ??
+        return
+
+    def test_result():
+        future = celery.submit(add, 1, 2)
+        assert future.running()
+        assert not future.done()
+        future.status ## ??
+
+        result = future.result(timeout=1)
+        assert result == 3
+        assert not future.running()
+        assert future.done()
+        assert not future.cancelled()
+        future.status ## ??
+        return
+
+    def test_exception():
+        future = celery.submit(fail)
+        result = future.result(timeout=1)
+        exe = future.exception()
+        trace = future.traceback()
+        assert isinstance(exe.msg, AssertionError)
+        assert exe.msg == 'failed'
+        future.status ## ??
+        return
+
+    def test_callback():
+        # TODO
+        return
+
+    def test_cancelled():
+        # implicitly tested by other methods
+        return
+
+    def test_running():
+        # implicitly tested by other methods
+        return
+
+    def test_done():
+        # implicitly tested by other methods
+        return
+
+
+class TestStatus:
+
+    def test_api(client):
+        # submit tasks via api
+        response = client.post('/submit')
         assert response.status_code == 200
-        assert response.json['name'] == 'test'
+        assert False ## NOT SURE WHAT TO TEST HERE
+
+        # monitor results
+        response = client.get('/monitor')
+        assert response.status_code == 200
+        return
+
+    def test_status_checks(celery):
+        celery.submit(add, 1, 2)
+        celery.submit(sleep)
+
+        # active
+        result = celery.active()
+        print(result)
+        assert False
+
+        # scheduled
+        result = celery.scheduled()
+        assert False
+
+        # reserved
+        result = celery.reserved()
+        assert False
+
+        # revoked
+        result = celery.revoked()
+        assert False
+
+        # registered
+        result = celery.registered()
+        assert False
+        return
+
+    def test_celery_stats(celery):
+        celery.map([[add, 1, 2], [add, 3, 4], [add, 5, 6]])
+        celery.submit(add, 7, 8).result(timeout=1)
+        celery.submit(sleep)
+
+        # get stats
+        stats = celery.stats()
+        print(stats)
+        assert False
         return
