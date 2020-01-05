@@ -157,8 +157,9 @@ The return value for submitting a task is a ``Future`` object, which wraps the `
     # wait for result (with optional timeout)
     future.result(timeout=1)
 
-    # return exception raised during the call
+    # return exception and traceback information (if any)
     exc = future.exception()
+    trace = future.traceback()
 
 
 Finally, you can also add a callback to be executed when the task finishes running.
