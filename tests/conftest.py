@@ -11,12 +11,7 @@ import os
 import pytest
 import logging
 
-from .fixtures import db, app
-
-
-# fixtures
-# --------
-from .fixtures import items  ## noqa
+from .fixtures import db, create_app
 
 
 # config
@@ -55,6 +50,7 @@ def application(request):
         os.makedirs(SANDBOX)
 
     # create application
+    app = create_app('testing')
     if SETTINGS['echo']:
         app.config['SQLALCHEMY_ECHO'] = True
 
@@ -77,6 +73,12 @@ def client(application):
     if CLIENT is not None:
         yield CLIENT
     else:
-        with app.test_client() as CLIENT:
+        with application.test_client() as CLIENT:
             yield CLIENT
+    return
+
+
+@pytest.fixture(scope='session')
+def celery(application, client):
+    yield application.extensions['celery']
     return
