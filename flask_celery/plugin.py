@@ -7,11 +7,6 @@
 
 # imports
 # -------
-# ...
-
-
-# plugin
-# ------
 import os
 import atexit
 import subprocess
@@ -28,6 +23,7 @@ from celery import Celery as CeleryFactory
 # ------
 WORKERS = {}
 
+
 # proxies
 # -------
 def get_current_task():
@@ -40,46 +36,12 @@ def get_current_task():
     else:
         return g.task
 
+
 current_task = LocalProxy(get_current_task)
 
 
 # helpers
 # -------
-class cli:
-    def call(self, cmd):
-        return subprocess.popen(
-            'exec celery -A flask_celery.celery {}'.format(cmd),
-            stderr=subprocess.STDOUT,
-            shell=True
-        )
-
-    def call(self, cmd):
-        return subprocess.call(
-            'exec celery -A flask_celery.celery {}'.format(cmd),
-            shell=True
-        )
-
-    def status(self, cmd):
-        return subprocess.check_output(
-            'celery -A flask_celery.celery status',
-            stderr=subprocess.STDOUT, shell=True
-        ).decode('utf-8')
-
-celery.call()
-celery.run()
-celery.status()
-
-def foreground(cmd):
-    return
-
-def celery(cmd):
-    """
-    Function for wrapping celery command with
-    command-line application name.
-    """
-    return 'celery -A flask_celery.celery ' + cmd
-
-
 def dispatch(func, *args, **kwargs):
     """
     Dynamic abstracted task for pre-registration of
@@ -92,6 +54,8 @@ def dispatch(func, *args, **kwargs):
 def stop_workers(timeout=5):
     """
     Clean all processes spawned by this plugin.
+
+    TODO: MIGHT NOT BE NECESSARY
     """
     global WORKERS
     for key in WORKERS:
@@ -107,23 +71,39 @@ def ping(input):
     return input
 
 
-def app_factory(module, *args):
-    # factory function specified
-    if callable(module):
-        return callable(*args)
+# classes
+# -------
+class cli:
+    """
+    Data structure for wrapping celery internal celery commands
+    executed throughout the plugin.
+    """
+    def popen(self, cmd, stderr=subprocess.STDOUT, stdout=None):
+        """
+        Run subprocess.popen for executing celery command in background.
+        """
+        return subprocess.popen(
+            'exec celery -A flask_celery.celery {}'.format(cmd),
+            stderr=stderr, stdout=stdout, shell=True
+        )
 
-    # module specified
-    import importlib
-    from flask import Flask
-    package, target = module.rsplit('.', 1)
-    mod = importlib.import_module(package)
-    data = getattr(mod, target)
-    if isinstance(data, Flask):
-        return data
-    elif callable(data):
-        return data(*args)
-    else:
-        raise AssertionError('Don\'t know how to import application factory from module {}'.format(module))
+    def call(self, cmd, stderr=subprocess.STDOUT, stdout=None):
+        """
+        Run subprocess.call for executing celery command.
+        """
+        return subprocess.call(
+            'exec celery -A flask_celery.celery {}'.format(cmd),
+            stderr=stderr, stdout=stdout, shell=True
+        )
+
+    def status(self):
+        """
+        Run subprocess.check_output for checking celery status.
+        """
+        return subprocess.check_output(
+            'celery -A flask_celery.celery status',
+            stderr=subprocess.STDOUT, shell=True
+        ).decode('utf-8')
 
 
 # plugin
@@ -153,6 +133,9 @@ class Celery(object):
         self.app.config.setdefault('CELERY_ALWAYS_EAGER', False)
         self.app.config.setdefault('CELERY_LOG_LEVEL', 'info')
         self.app.config.setdefault('CELERY_LOG_DIR', os.getcwd())
+        self.app.config.setdefault('CELERY_FLOWER', True)
+        self.app.config.setdefault('CELERY_FLOWER_PORT', 5555)
+        self.app.config.setdefault('CELERY_FLOWER_ADDRESS', '127.0.0.1')
 
         # set up controller
         self.controller = CeleryFactory(
@@ -197,19 +180,35 @@ class Celery(object):
         @celery.command('worker')
         @click.argument('args', nargs=-1, type=click.UNPROCESSED)
         def worker(args):
-            subprocess.call(
-                "celery -A flask_celery.celery worker --loglevel={} {}".format(
-                    self.app.config['CELERY_LOG_LEVEL'],
-                    ' '.join(args)
-                ),
-                shell=True
+            """
+            Start single celery worker from configuration.
+            """
+            # TODO: parse args for worker names and consolidate with
+            #       configuration
+            return cli.call(
+                "worker --loglevel={} {}".format(
+                    self.app.config['CELERY_LOG_LEVEL'], ' '.join(args)
+                )
             )
-            return
 
         @celery.command('cluster')
         def cluster():
+            """
+            Start local cluster of celery workers and flower
+            monitoring tool (if specified).
+            """
             self.start()
-            flower = subprocess.call('exec celery flower -A flask_celery.celery --address=127.0.0.1 --port=5555', shell=True)
+            if self.app.config['CELERY_FLOWER']:
+                flower = cli.popen(
+                    '--address={} --port={}'.format(
+                        self.app.config['CELERY_FLOWER_ADDRESS'],
+                        self.app.config['CELERY_FLOWER_PORT'],
+                    )
+                )
+
+            while True:
+                time.sleep(1)
+
             # TODO: figure out how to stream logs from workers
             # global WORKERS
             # while True:
@@ -220,6 +219,9 @@ class Celery(object):
 
         @celery.command('status')
         def status():
+            """
+            Check statuses of celery workers.
+            """
             result = self.status()
             print(json.dumps(result, indent=2))
             return result
@@ -228,8 +230,13 @@ class Celery(object):
 
         # spawn local worker (if specified)
         if self.app.config['CELERY_START_LOCAL_WORKERS']:
+
+            # TODO: FIGURE OUT HOW TO DO THIS WHENEVER THE FIRST CELERY.SUBMIT() CALL IS MADE
             @self.app.before_first_request
             def spawn_workers():
+                """
+                Start local workers on appolication boot.
+                """
                 self.start()
                 if not self.ping():
                     raise AssertionError('Could not fork local celery workers. See celery logs for details.')
@@ -250,9 +257,8 @@ class Celery(object):
             )
 
         # poll specific statuses
-        status = subprocess.check_output('celery -A flask_celery.celery status', stderr=subprocess.STDOUT, shell=True)  ## noqa
         workers = {}
-        for stat in status.decode('utf-8').split('\n'):
+        for stat in cli.status().split('\n'):
             if '@' in stat:
                 worker, health = stat.split(': ')
                 workers[worker] = health
@@ -290,7 +296,7 @@ class Celery(object):
             level = self.app.config['CELERY_LOG_LEVEL']
             logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], worker + '.log')
             with open(logfile, 'a') as lf:
-                proc = subprocess.Popen("exec celery -A flask_celery.celery worker --loglevel={} -n {}@%h".format(level, worker), stderr=subprocess.STDOUT, stdout=lf, shell=True)
+                proc = cli.popen("worker --loglevel={} -n {}@%h".format(level, worker), stdout=lf)
             WORKERS[worker] = proc
         return
 
@@ -324,7 +330,10 @@ class Celery(object):
         # submit
         return self.wrapper.delay(func, *args, **kwargs)
 
-    def result(self, ident):
+    def get(self, ident):
+        """
+        Retrieve a Future object for the specified task.
+        """
         from celery.result import AsyncResult
         task = AsyncResult(ident)
         return task
