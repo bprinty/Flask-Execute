@@ -41,13 +41,48 @@ def pytest_configure(config):
 
 
 @pytest.fixture(autouse=True, scope='session')
-def application(request):
+def sandbox(request):
     from . import SANDBOX
     global SETTINGS, APP, CLIENT
 
     # create sandbox for testing
     if not os.path.exists(SANDBOX):
         os.makedirs(SANDBOX)
+
+    yield
+
+    # teardown sandbox
+    if SETTINGS['teardown']:
+        import shutil
+        shutil.rmtree(SANDBOX)
+    return
+
+
+@pytest.fixture(scope='session')
+def server(sandbox):
+    import requests
+    from . import SANDBOX
+    global SETTINGS, APP, CLIENT
+
+    # create application
+    app = create_app('development')
+
+    # create default user
+    with app.app_context():
+        db.drop_all()
+        db.create_all()
+
+    proc = subprocess.popen('FLASK_ENV=development FLASK_APP=tests.conftest::create_app exec flask run')
+    client = requests.Session()
+
+    yield client
+    return
+
+
+@pytest.fixture(scope='session')
+def application(sandbox):
+    from . import SANDBOX
+    global SETTINGS, APP, CLIENT
 
     # create application
     app = create_app('testing')
@@ -59,11 +94,6 @@ def application(request):
         db.drop_all()
         db.create_all()
         yield app
-
-    # teardown sandbox
-    if SETTINGS['teardown']:
-        import shutil
-        shutil.rmtree(SANDBOX)
     return
 
 

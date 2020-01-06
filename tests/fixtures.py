@@ -7,6 +7,7 @@
 
 # imports
 # -------
+import os
 from flask import Flask, Blueprint, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
@@ -24,6 +25,7 @@ api = Blueprint('api', __name__)
 # configs
 # -------
 class Config:
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = False
     PROPAGATE_EXCEPTIONS = False
     SQLALCHEMY_DATABASE_URI = 'sqlite:///{}/dev.db'.format(SANDBOX)
@@ -46,6 +48,7 @@ def create_app(env='development'):
     Application factory to use for spinning up development
     server tests.
     """
+    env = os.environ.get('FLASK_ENV', env)
     if env == 'development':
         config = DevConfig
     elif env == 'testing':
@@ -94,6 +97,13 @@ def submit():
 @api.route('/monitor/<ident>', methods=['GET'])
 def monitor(ident):
     return jsonify(status=celery.get(ident).status)
+
+
+@api.route('/ping', methods=['POST'])
+def ping():
+    def _(): return 'pong'
+    result = celery.submit(_).result(timeout=1)
+    return jsonify(result=result)
 
 
 # models
