@@ -106,6 +106,92 @@ class cli:
         ).decode('utf-8')
 
 
+class Future(object):
+    """
+    Wrapper around celery.AsyncResult to provide an API similar
+    to the ``concurrent.futures`` API.
+    """
+
+    def __init__(self, result):
+        self.__proxy__ = result
+        return
+
+    def __getattr__(self, key):
+        return getattr(self.__proxy__, key)
+
+    def result(self, timeout=0):
+        self.__proxy__.wait(timeout=timeout)
+        return self.__proxy__.result
+
+    def cancel(self):
+        self.__proxy__.revoke()
+        return
+
+    def running(self):
+        return self.__proxy__.state in ['STARTED']
+
+    def done(self):
+        return self.__proxy__.state in ['FAILURE', 'SUCCESS']
+
+    def exception(self):
+        # parse from traceback?
+        return
+
+    def traceback(self):
+        return self.__proxy__.traceback
+
+    def add_done_callback(self, callback):
+        self.__proxy__.then(callback)
+        return
+
+
+class FuturePool(object):
+    """
+    Class for managing pool of futures for grouped operations.
+    """
+
+    def __init__(self, futures):
+        self.futures = futures
+        return
+
+    def __iter__(self):
+        for future in self.futures:
+            yield future
+        return
+
+    def result(timeout=0):
+        return [
+            future.result(timeout=timeout)
+            for future in self.futures
+        ]
+
+    def cancel(self):
+        return [
+            future.cancel()
+            for future in self.futures
+        ]
+
+    def running(self):
+        for future in self.futures:
+            if future.running():
+                return True
+        return False
+
+    def done(self):
+        for future in self.futures:
+            if not future.done():
+                return False
+        return True
+
+    def exception(self):
+        # TODO
+        return
+
+    def traceback(self):
+        # TODO
+        return
+
+
 # plugin
 # ------
 class Celery(object):
@@ -169,10 +255,12 @@ class Celery(object):
                         return self.run(*args, **kwargs)
 
         self.controller.Task = ContextTask
-        self.app.celery = self.controller
+        if not hasattr(self.app, 'extensions'):
+            self.app.extensions = {}
+        self.app.extensions['celery'] = self
 
         # register dynamic task
-        self.wrapper = self.app.celery.task(dispatch)
+        self.wrapper = self.controller.task(dispatch)
 
         # add cli commands for starting workers
         celery = AppGroup('celery')
@@ -328,7 +416,7 @@ class Celery(object):
                 kwargs[key] = kwargs[key]._get_current_object()
 
         # submit
-        return self.wrapper.delay(func, *args, **kwargs)
+        return Future(self.wrapper.delay(func, *args, **kwargs))
 
     def get(self, ident):
         """
@@ -336,4 +424,4 @@ class Celery(object):
         """
         from celery.result import AsyncResult
         task = AsyncResult(ident)
-        return task
+        return Future(task)
