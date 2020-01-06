@@ -9,4 +9,8 @@
 from flask.cli import ScriptInfo
 info = ScriptInfo()
 app = info.load_app()
-executor = app.celery
+
+if not hasattr(app, 'extensions') or 'celery' not in app.extensions:
+    raise AssertionError('Celery plugin has not been registered with application. Please see documentation for how to configure Flask-Celery')
+
+executor = app.extensions['celery']
