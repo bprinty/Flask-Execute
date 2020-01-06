@@ -418,6 +418,26 @@ class Celery(object):
         # submit
         return Future(self.wrapper.delay(func, *args, **kwargs))
 
+    def map(self, func, *args, **kwargs):
+        """
+        Submit iterable of functions/arguments to celery and
+        """
+        futures = []
+        for arg in args:
+            self.submit(func, *arg, **kwargs)
+
+        # evaluate context locals to avoid pickling issues
+        args = list(args)
+        for idx, arg in enumerate(args):
+            if isinstance(arg, LocalProxy):
+                args[idx] = arg._get_current_object()
+        for key in kwargs:
+            if isinstance(kwargs[key], LocalProxy):
+                kwargs[key] = kwargs[key]._get_current_object()
+
+        # submit
+        return Future(self.wrapper.delay(func, *args, **kwargs))
+
     def get(self, ident):
         """
         Retrieve a Future object for the specified task.
