@@ -33,7 +33,7 @@ class TestSubmit:
 
 class TestFuture:
 
-    def test_cancel():
+    def test_cancel(self, celery):
         future = celery.submit(sleep, 3)
         assert future.running()
         assert not future.done()
@@ -47,7 +47,7 @@ class TestFuture:
         future.status ## ??
         return
 
-    def test_result():
+    def test_result(self, celery):
         future = celery.submit(add, 1, 2)
         assert future.running()
         assert not future.done()
@@ -61,7 +61,7 @@ class TestFuture:
         future.status ## ??
         return
 
-    def test_exception():
+    def test_exception(self, celery):
         future = celery.submit(fail)
         result = future.result(timeout=1)
         exe = future.exception()
@@ -71,26 +71,26 @@ class TestFuture:
         future.status ## ??
         return
 
-    def test_callback():
+    def test_callback(self, celery):
         # TODO
         return
 
-    def test_cancelled():
+    def test_cancelled(self, celery):
         # implicitly tested by other methods
         return
 
-    def test_running():
+    def test_running(self, celery):
         # implicitly tested by other methods
         return
 
-    def test_done():
+    def test_done(self, celery):
         # implicitly tested by other methods
         return
 
 
 class TestStatus:
 
-    def test_api(client):
+    def test_api(self, client):
         # submit tasks via api
         response = client.post('/submit')
         assert response.status_code == 200
@@ -101,7 +101,7 @@ class TestStatus:
         assert response.status_code == 200
         return
 
-    def test_status_checks(celery):
+    def test_status_checks(self, celery):
         celery.submit(add, 1, 2)
         celery.submit(sleep)
 
@@ -127,7 +127,7 @@ class TestStatus:
         assert False
         return
 
-    def test_celery_stats(celery):
+    def test_celery_stats(self, celery):
         celery.map([[add, 1, 2], [add, 3, 4], [add, 5, 6]])
         celery.submit(add, 7, 8).result(timeout=1)
         celery.submit(sleep)
