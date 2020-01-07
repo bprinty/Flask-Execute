@@ -13,10 +13,14 @@ import subprocess
 import logging
 import click
 import json
+from functools import reduce
 from flask import g, current_app
 from flask.cli import AppGroup
 from werkzeug.local import LocalProxy
 from celery import Celery as CeleryFactory
+from celery.exceptions import TaskRevokedError
+
+from .cli import cli, entrypoint
 
 
 # config
@@ -73,39 +77,6 @@ def ping(input):
 
 # classes
 # -------
-class cli:
-    """
-    Data structure for wrapping celery internal celery commands
-    executed throughout the plugin.
-    """
-    def popen(self, cmd, stderr=subprocess.STDOUT, stdout=None):
-        """
-        Run subprocess.popen for executing celery command in background.
-        """
-        return subprocess.popen(
-            'exec celery -A flask_celery.celery {}'.format(cmd),
-            stderr=stderr, stdout=stdout, shell=True
-        )
-
-    def call(self, cmd, stderr=subprocess.STDOUT, stdout=None):
-        """
-        Run subprocess.call for executing celery command.
-        """
-        return subprocess.call(
-            'exec celery -A flask_celery.celery {}'.format(cmd),
-            stderr=stderr, stdout=stdout, shell=True
-        )
-
-    def status(self):
-        """
-        Run subprocess.check_output for checking celery status.
-        """
-        return subprocess.check_output(
-            'celery -A flask_celery.celery status',
-            stderr=subprocess.STDOUT, shell=True
-        ).decode('utf-8')
-
-
 class Future(object):
     """
     Wrapper around celery.AsyncResult to provide an API similar
@@ -114,51 +85,72 @@ class Future(object):
 
     def __init__(self, result):
         self.__proxy__ = result
+        self.id = self.__proxy__.id
         return
 
     def __getattr__(self, key):
         return getattr(self.__proxy__, key)
 
-    def result(self, timeout=0):
+    def result(self, timeout=None):
         self.__proxy__.wait(timeout=timeout)
         return self.__proxy__.result
 
-    def cancel(self):
+    def cancel(self, *args, **kwargs):
         """
         Attempt to cancel the call. If the call is currently
         being executed or finished running and cannot be cancelled
         then the method will return False, otherwise the call will
         be cancelled and the method will return True.
         """
-        if self.done() or self.running():
+        if self.__proxy__.state in ['STARTED', 'FAILURE', 'SUCCESS', 'REVOKED']:
             return False
-        self.__proxy__.revoke()
+        kwargs.setdefault('terminate', True)
+        kwargs.setdefault('wait', True)
+        kwargs.setdefault('timeout', 1 if kwargs['wait'] else None)
+        self.__proxy__.revoke(*args, **kwargs)
         return True
+
+    def cancelled(self):
+        """
+        Return ``True`` if the call was successfully cancelled.
+        """
+        return self.__proxy__.state == 'REVOKED'
 
     def running(self):
         """
         Return ``True`` if the call is currently being
         executed and cannot be cancelled.
         """
-        return self.__proxy__.state in ['STARTED']
+        return self.__proxy__.state in ['STARTED', 'PENDING']
 
     def done(self):
         """
         Return True if the call was successfully cancelled
         or finished running.
         """
-        return self.__proxy__.state in ['FAILURE', 'SUCCESS']
+        return self.__proxy__.state in ['FAILURE', 'SUCCESS', 'REVOKED']
 
-    def exception(self):
-        # parse from traceback?
+    def exception(self, timeout=None):
+        """
+        Return the exception raised by the call. If the call hasn’t yet
+        completed then this method will wait up to ``timeout`` seconds. If the
+        call hasn’t completed in ``timeout seconds``. If the call completed
+        without raising, None is returned.
+        """
+        try:
+            self.__proxy__.wait(timeout=timeout)
+        except Exception as exe:
+            return exe
         return
 
-    def traceback(self):
-        return self.__proxy__.traceback
-
-    def add_done_callback(self, callback):
-        self.__proxy__.then(callback)
-        return
+    def add_done_callback(self, fn):
+        """
+        Attaches the callable fn to the future. fn will be called, with
+        the task as its only argument, when the future is cancelled
+        or finishes running.
+        """
+        self.__proxy__.then(fn)
+        return self
 
 
 class FuturePool(object):
@@ -178,6 +170,15 @@ class FuturePool(object):
     def __len__(self):
         return len(self.futures)
 
+    def add(self, future):
+        """
+        Add future object to pool.
+        """
+        if not isinstance(future, Future):
+            raise AssertionError('No rule for adding {} type to FuturePool.'.format(type(future)))
+        self.futures.append(future)
+        return
+
     def result(self, timeout=0):
         """
         Wait for entire future pool to finish and return result.
@@ -190,7 +191,7 @@ class FuturePool(object):
             for future in self.futures
         ]
 
-    def cancel(self):
+    def cancel(self, *args, **kwargs):
         """
         Cancel all running tasks in future pool. Return value will be
         ``True`` if *all* tasks were successfully cancelled and ``False``
@@ -199,7 +200,7 @@ class FuturePool(object):
         """
         result = True
         for future in self.futures:
-            result &= future.cancel()
+            result &= future.cancel(*args, **kwargs)
         return result
 
     def running(self):
@@ -249,6 +250,8 @@ class Celery(object):
     def __init__(self, app=None):
         if app is not None:
             self.init_app(app)
+        self._started = False
+        self._registered = []
         return
 
     def init_app(self, app):
@@ -257,7 +260,7 @@ class Celery(object):
         self.app.config.setdefault('CELERY_BROKER_URL', 'redis://localhost:6379')
         self.app.config.setdefault('CELERY_RESULT_BACKEND', 'redis://localhost:6379')
         self.app.config.setdefault('CELERY_WORKERS', 1)
-        self.app.config.setdefault('CELERY_START_LOCAL_WORKERS', False)
+        self.app.config.setdefault('CELERY_START_LOCAL_WORKERS', True)
         self.app.config.setdefault('CELERY_START_LOCAL_MONITOR', False)
         self.app.config.setdefault('CELERY_MONITOR_PORT', None)
         self.app.config.setdefault('CELERY_ACCEPT_CONTENT', ['json', 'pickle'])
@@ -269,6 +272,11 @@ class Celery(object):
         self.app.config.setdefault('CELERY_FLOWER', True)
         self.app.config.setdefault('CELERY_FLOWER_PORT', 5555)
         self.app.config.setdefault('CELERY_FLOWER_ADDRESS', '127.0.0.1')
+
+        # TODO: IMPORTANT
+        #       set FLASK_APP if not set from app.import_name - allows
+        #       users running app.py directly to have things just work
+        # raise NotImplementedError
 
         # set up controller
         self.controller = CeleryFactory(
@@ -289,7 +297,7 @@ class Celery(object):
             def __call__(self, *args, **kwargs):
                 # if eager, run without creating new context
                 if self.config['CELERY_ALWAYS_EAGER']:
-                    g.task = self
+                    g.task = self.request
                     return self.run(*args, **kwargs)
 
                 # otherwise, create new context and run the command
@@ -298,118 +306,30 @@ class Celery(object):
                     info = ScriptInfo()
                     app = info.load_app()
                     with app.app_context():
-                        g.task = self
+                        g.task = self.request
                         return self.run(*args, **kwargs)
 
         self.controller.Task = ContextTask
+
+        # link celery  extension to registered application
         if not hasattr(self.app, 'extensions'):
             self.app.extensions = {}
         self.app.extensions['celery'] = self
 
         # register dynamic task
         self.wrapper = self.controller.task(dispatch)
+        for task in self._registered:
+            task = self.controller.task()(task)
 
-        # add cli commands for starting workers
-        celery = AppGroup('celery')
-
-        @celery.command('worker')
-        @click.argument('args', nargs=-1, type=click.UNPROCESSED)
-        def worker(args):
-            """
-            Start single celery worker from configuration.
-            """
-            # TODO: parse args for worker names and consolidate with
-            #       configuration
-            return cli.call(
-                "worker --loglevel={} {}".format(
-                    self.app.config['CELERY_LOG_LEVEL'], ' '.join(args)
-                )
-            )
-
-        @celery.command('cluster')
-        def cluster():
-            """
-            Start local cluster of celery workers and flower
-            monitoring tool (if specified).
-            """
-            self.start()
-            if self.app.config['CELERY_FLOWER']:
-                flower = cli.popen(
-                    '--address={} --port={}'.format(
-                        self.app.config['CELERY_FLOWER_ADDRESS'],
-                        self.app.config['CELERY_FLOWER_PORT'],
-                    )
-                )
-
-            while True:
-                time.sleep(1)
-
-            # TODO: figure out how to stream logs from workers
-            # global WORKERS
-            # while True:
-            #     for worker in WORKERS:
-            #         print('in!')
-            #         print('out!')
-            return
-
-        @celery.command('status')
-        def status():
-            """
-            Check statuses of celery workers.
-            """
-            result = self.status()
-            print(json.dumps(result, indent=2))
-            return result
-
-        self.app.cli.add_command(celery)
-
-        # spawn local worker (if specified)
-        if self.app.config['CELERY_START_LOCAL_WORKERS']:
-
-            # TODO: FIGURE OUT HOW TO DO THIS WHENEVER THE FIRST CELERY.SUBMIT() CALL IS MADE
-            @self.app.before_first_request
-            def spawn_workers():
-                """
-                Start local workers on appolication boot.
-                """
-                self.start()
-                if not self.ping():
-                    raise AssertionError('Could not fork local celery workers. See celery logs for details.')
-                return
-
+        # register cli entry points
+        self.app.cli.add_command(entrypoint)
         return
 
-    def status(self):
-        """
-        Return status of celery server.
-        """
-        # quick check with ping
-        ping = self.ping()
-        if not ping:
-            return dict(
-                ping=ping,
-                error='Could not poll status of celery workers. Workers are all down or unavailable.'
-            )
-
-        # poll specific statuses
-        workers = {}
-        for stat in cli.status().split('\n'):
-            if '@' in stat:
-                worker, health = stat.split(': ')
-                workers[worker] = health
-
-        return dict(
-            ping=ping,
-            workers=workers,
-        )
-
-    def start(self, log=True):
+    def start(self):
         """
         Start local celery workers specified in config.
         """
-        # check if workers are already running and connected
-        if self.ping(1):
-            return
+        running = self.status(ping=False)
 
         # reformat worker specification
         global WORKERS
@@ -427,32 +347,68 @@ class Celery(object):
 
         # spawn local workers
         for worker in workers:
+            # don't start worker if already running
+            if running.get(worker) == 'OK':
+                continue
+
+            # configure logging
             current_app.logger.info('spawning local worker: {}'.format(worker))
             level = self.app.config['CELERY_LOG_LEVEL']
             logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], worker + '.log')
+
+            # start worker
             with open(logfile, 'a') as lf:
                 proc = cli.popen("worker --loglevel={} -n {}@%h".format(level, worker), stdout=lf)
+
             WORKERS[worker] = proc
+
+        # wait for workers to start
+        timeout = 0
+        while timeout < 5:
+            if self.status(ping=False):
+                break
+            timeout += 1
+        if timeout == 5:
+            raise AssertionError(
+                'Could not connect to celery workers after {} attempts. '
+                'See worker logs for details.'.format(timeout)
+            )
         return
 
-    def ping(self, timeout=3, tries=2):
+    def task(self, func):
         """
-        Ping celery workers by running simple task and
-        return worker health status.
+        Pre-register task with celery.
         """
-        future = self.submit(ping, 'pong')
-        for i in range(tries):
-            try:
-                future.wait(timeout)
-                return future.successful()
-            except Exception:
-                pass
-        return False
+        # if len(args) == 1 and callable(args[0]):
+        #     self._registered.append((args[0]))
+        #     return
+        # def _(func):
+        #     self._registered.append(func)
+        # return _
+        # def wrapper(*args, **kwargs):
+        #     def decorator(func):
+        #         def _(*args, **kwargs):
+        #             return func(*args, **kwargs)
+        #         return _
+        #     return decorator
+        # TODO: partial dispatch function with specified function?
+        return func
+
+    def schedule(self, func):
+        # TODO: need to figure out this api
+        return func
 
     def submit(self, func, *args, **kwargs):
         """
         Submit function to celery worker for processing.
         """
+        # start celery if first ``submit()`` call.
+        if not self.app.config['CELERY_ALWAYS_EAGER'] and \
+           self.app.config['CELERY_START_LOCAL_WORKERS'] and \
+           not self._started:
+            self.start()
+            self._started = True
+
         # evaluate context locals to avoid pickling issues
         args = list(args)
         for idx, arg in enumerate(args):
@@ -481,3 +437,129 @@ class Celery(object):
         from celery.result import AsyncResult
         task = AsyncResult(ident)
         return Future(task)
+
+    def status(self, ping=True):
+        """
+        Return status of celery server.
+        """
+        # check specific worker statuses
+        workers = {}
+        try:
+            output = cli.output('status')
+            for stat in output.split('\n'):
+                if '@' in stat:
+                    worker, health = stat.split(': ')
+                    workers[worker] = health
+        except Exception:
+            pass
+
+        # exit if ping not necessary
+        if not ping:
+            return workers
+
+        # run simple command
+        ping = self.ping()
+        if not ping:
+            return dict(
+                ping=ping,
+                error='Could not poll status of celery workers. Workers are all down or unavailable.'
+            )
+
+        return dict(
+            ping=ping,
+            workers=workers,
+        )
+
+    def ping(self, timeout=3, tries=2):
+        """
+        Ping celery workers by running simple task and
+        return worker health status.
+        """
+        future = self.submit(ping, 'pong')
+        for i in range(tries):
+            try:
+                future.wait(timeout)
+                return future.successful()
+            except Exception:
+                pass
+        return False
+
+    def active(self, collapse=False):
+        """
+        Return information about active celery commands.
+
+        Args:
+            collapse (bool): Collapse result into single list
+                of active task ids (no worker information sent back)
+        """
+        workers = {}
+        current = None
+
+        # iterate though output and build data structure
+        for line in cli.output('inspect active').split('\n'):
+            if '- empty -' in line:
+                continue
+            elif '->' in line:
+                current = line.replace('-> ', '').split(': ')[0]
+                workers[current] = []
+            elif '* ' in line:
+                data = eval(line.replace('    * ', ''))
+                workers[current].append(data['id'])
+
+        # collapse results if specified
+        if collapse:
+            return reduce(lambda x, y: x + y, [workers[k] for k in workers])
+        return workers
+
+    def revoked(self, collapse=False):
+        """
+        Return information about scheduled celery commands.
+
+        Args:
+            collapse (bool): Collapse result into single list
+                of active task ids (no worker information sent back)
+        """
+        workers = {}
+        current = None
+
+        # iterate though output and build data structure
+        for line in cli.output('inspect revoked').split('\n'):
+            if '- empty -' in line:
+                continue
+            elif '->' in line:
+                current = line.replace('-> ', '').split(': ')[0]
+                workers[current] = []
+            elif '* ' in line:
+                workers[current].append(line.replace('    * ', ''))
+
+        # collapse results if specified
+        if collapse:
+            return reduce(lambda x, y: x + y, [workers[k] for k in workers])
+        return workers
+
+    def scheduled(self):
+        """
+        Return information about scheduled celery commands.
+        """
+        return cli.output('inspect scheduled')
+
+    def stats(self):
+        """
+        Return information about scheduled celery commands.
+        """
+        workers = {}
+        current = None
+
+        # iterate through output and build data structure
+        for line in cli.output('inspect stats').split('\n'):
+            if '->' in line:
+                current = line.replace('-> ', '').split(': ')[0]
+                workers[current] = ''
+            elif current is not None:
+                workers[current] += line[4:]
+
+        # parse into json
+        for key in workers:
+            workers[key] = json.loads(workers[key])
+
+        return workers
