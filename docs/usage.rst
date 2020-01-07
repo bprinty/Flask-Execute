@@ -101,12 +101,21 @@ Just like with other executor tools, this extension also provides a built-in ``m
 
 .. code-block:: python
 
-    >>> futures = celery.map(add, iter([[1, 2], [3, 4], [5, 6]]))
+    # arguments
+    >>> futures = celery.map(add, [1, 2], [3, 4], [5, 6])
     >>> for future in futures:
     >>>     print(future.result(timeout=1))
     3
     7
     11
+
+    # with constant keyword arguments
+    >>> futures = celery.map(add, [1], [3], [5], y=2)
+    >>> for future in futures:
+    >>>     print(future.result(timeout=1))
+    3
+    5
+    7
 
 If you like the declarative syntax celery uses to register tasks, you can still do so via:
 

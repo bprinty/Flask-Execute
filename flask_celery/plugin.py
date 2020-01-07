@@ -124,13 +124,29 @@ class Future(object):
         return self.__proxy__.result
 
     def cancel(self):
+        """
+        Attempt to cancel the call. If the call is currently
+        being executed or finished running and cannot be cancelled
+        then the method will return False, otherwise the call will
+        be cancelled and the method will return True.
+        """
+        if self.done() or self.running():
+            return False
         self.__proxy__.revoke()
-        return
+        return True
 
     def running(self):
+        """
+        Return ``True`` if the call is currently being
+        executed and cannot be cancelled.
+        """
         return self.__proxy__.state in ['STARTED']
 
     def done(self):
+        """
+        Return True if the call was successfully cancelled
+        or finished running.
+        """
         return self.__proxy__.state in ['FAILURE', 'SUCCESS']
 
     def exception(self):
@@ -159,35 +175,66 @@ class FuturePool(object):
             yield future
         return
 
-    def result(timeout=0):
+    def __len__(self):
+        return len(self.futures)
+
+    def result(self, timeout=0):
+        """
+        Wait for entire future pool to finish and return result.
+
+        Args:
+            timeout (float): Amount of seconds to wait until timeout.
+        """
         return [
             future.result(timeout=timeout)
             for future in self.futures
         ]
 
     def cancel(self):
-        return [
-            future.cancel()
-            for future in self.futures
-        ]
+        """
+        Cancel all running tasks in future pool. Return value will be
+        ``True`` if *all* tasks were successfully cancelled and ``False``
+        if *any* tasks in the pool were running or done at the time of
+        cancellation.
+        """
+        result = True
+        for future in self.futures:
+            result &= future.cancel()
+        return result
 
     def running(self):
+        """
+        Return boolean describing if *any* tasks in future pool
+        are still running.
+        """
         for future in self.futures:
             if future.running():
                 return True
         return False
 
     def done(self):
+        """
+        Return boolean describing if *all* tasks in future pool
+        are either finished or have been revoked.
+        """
         for future in self.futures:
             if not future.done():
                 return False
         return True
 
     def exception(self):
+        """
+        Return exception(s) thrown by task, if any were
+        thrown during execution.
+        """
         # TODO
         return
 
     def traceback(self):
+        """
+        Return full traceback for tasks that raised exceptions
+        during execution.
+        """
         # TODO
         return
 
@@ -424,19 +471,8 @@ class Celery(object):
         """
         futures = []
         for arg in args:
-            self.submit(func, *arg, **kwargs)
-
-        # evaluate context locals to avoid pickling issues
-        args = list(args)
-        for idx, arg in enumerate(args):
-            if isinstance(arg, LocalProxy):
-                args[idx] = arg._get_current_object()
-        for key in kwargs:
-            if isinstance(kwargs[key], LocalProxy):
-                kwargs[key] = kwargs[key]._get_current_object()
-
-        # submit
-        return Future(self.wrapper.delay(func, *args, **kwargs))
+            futures.append(self.submit(func, *arg, **kwargs))
+        return FuturePool(futures)
 
     def get(self, ident):
         """
