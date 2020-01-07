@@ -23,6 +23,7 @@ SETTINGS = dict(
 APP = None
 CLIENT = None
 logging.basicConfig(level=logging.ERROR)
+os.environ['FLASK_APP'] = 'tests.fixtures:create_app'
 
 
 # plugins
@@ -58,25 +59,25 @@ def sandbox(request):
     return
 
 
-@pytest.fixture(scope='session')
-def server(sandbox):
-    import requests
-    from . import SANDBOX
-    global SETTINGS, APP, CLIENT
-
-    # create application
-    app = create_app('development')
-
-    # create default user
-    with app.app_context():
-        db.drop_all()
-        db.create_all()
-
-    proc = subprocess.popen('FLASK_ENV=development FLASK_APP=tests.conftest::create_app exec flask run')
-    client = requests.Session()
-
-    yield client
-    return
+# @pytest.fixture(scope='session')
+# def server(sandbox):
+#     import requests
+#     from . import SANDBOX
+#     global SETTINGS, APP, CLIENT
+#
+#     # create application
+#     app = create_app()
+#
+#     # create default user
+#     with app.app_context():
+#         db.drop_all()
+#         db.create_all()
+#
+#     proc = subprocess.popen('FLASK_ENV=development FLASK_APP=tests.conftest::create_app exec flask run')
+#     client = requests.Session()
+#
+#     yield client
+#     return
 
 
 @pytest.fixture(scope='session')
@@ -85,7 +86,7 @@ def application(sandbox):
     global SETTINGS, APP, CLIENT
 
     # create application
-    app = create_app('testing')
+    app = create_app()
     if SETTINGS['echo']:
         app.config['SQLALCHEMY_ECHO'] = True
 

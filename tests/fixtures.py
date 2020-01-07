@@ -29,33 +29,19 @@ class Config:
     SQLALCHEMY_ECHO = False
     PROPAGATE_EXCEPTIONS = False
     SQLALCHEMY_DATABASE_URI = 'sqlite:///{}/dev.db'.format(SANDBOX)
-
-
-class DevConfig(Config):
-    ENV = 'development'
-    CELERY_WORKERS = ['foo', 'bar']
-
-
-class TestConfig(Config):
-    ENV = 'testing'
-    CELERY_ALWAYS_EAGER = True
+    # CELERY_LOG_DIR = SANDBOX
+    CELERY_WORKERS = ['quorra']
 
 
 # factory
 # -------
-def create_app(env='development'):
+def create_app():
     """
     Application factory to use for spinning up development
     server tests.
     """
-    env = os.environ.get('FLASK_ENV', env)
-    if env == 'development':
-        config = DevConfig
-    elif env == 'testing':
-        config = TestConfig
-
     app = Flask(__name__)
-    app.config.from_object(config)
+    app.config.from_object(Config)
     db.init_app(app)
     celery.init_app(app)
     app.register_blueprint(api)
@@ -68,7 +54,7 @@ def sleep(n=5):
     import time
     for count in range(n):
         time.sleep(0.1)
-    return
+    return True
 
 
 def add(*args):
@@ -82,16 +68,24 @@ def fail():
     raise AssertionError('fail')
 
 
+def task_id():
+    return current_task.id
+
+
+@celery.task
+def task():
+    return True
+
+
 # endpoints
 # ---------
 @api.route('/submit', methods=['POST'])
 def submit():
-    pool = celery.map(
-        [add, 1, 2],
-        [add, 3, 4],
-        [sleep]
-    )
-    return jsonify([future for future in pool])
+    pool = celery.map(add, [1, 2], [3, 4])
+    pool.add(celery.submit(fail))
+    pool.add(celery.submit(sleep))
+    pool.add(celery.submit(task_id))
+    return jsonify([future.id for future in pool])
 
 
 @api.route('/monitor/<ident>', methods=['GET'])
@@ -108,9 +102,8 @@ def ping():
 
 # models
 # ------
-class Task(db.Model):
-    __tablename__ = 'tasks'
+class Item(db.Model):
+    __tablename__ = 'items'
 
-    # basic
     id = db.Column(db.Integer, primary_key=True)
-    status = db.Column(db.String)
+    name = db.Column(db.String)
