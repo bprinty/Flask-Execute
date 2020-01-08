@@ -95,9 +95,8 @@ def monitor(ident):
 
 @api.route('/ping', methods=['POST'])
 def ping():
-    def _(): return 'pong'
-    result = celery.submit(_).result(timeout=1)
-    return jsonify(result=result)
+    result = celery.submit(add, 1, 1).result(timeout=1)
+    return jsonify(result='pong' if result == 2 else 'miss')
 
 
 # models

@@ -7,63 +7,85 @@
 
 # imports
 # -------
+import json
 import requests
 import subprocess
 
 
-# helpers
-# -------
-def reduce(func):
-    def _(cmd):
-        return func('FLASK_ENV=development FLASK_APP=tests.conftest::create_app {}'.format(cmd), shell=True)
+# config
+# ------
+PROCESSES = []
+
+
+def monitor(func):
+    def _(*args, **kwargs):
+        global PROCESSES
+        proc = func(*args, **kwargs)
+        PROCESSES.append(proc)
+        return proc
     return _
 
-subprocess.check_output = reduce(subprocess.check_output)
-subprocess.popen = reduce(subprocess.popen)
+
+subprocess.Popen = monitor(subprocess.Popen)
 
 
 # session
 # -------
 class TestCli(object):
 
-    def test_status(self, server):
-        # no workers running
-        output = subprocess.check_output('flask celery status')
-        assert False
+    @classmethod
+    def teardown_class(cls):
+        global PROCESSES
+        for proc in PROCESSES:
+            print('terminate')
+            proc.terminate()
+            proc.kill()
+            proc.wait()
+        return
 
+    def test_status(self, client):
         # submit tasks via api
-        response = requests.post('https://localhost:5000/ping')
+        response = client.post('/ping')
         assert response.status_code == 200
         assert response.json['result'] == 'pong'
 
         # workers should be running
-        output = subprocess.check_output('flask celery status')
-        assert False
+        output = subprocess.check_output('flask celery status', shell=True)
+        data = json.loads(output.decode('utf-8'))
+        assert data['ping'] == True
+        assert len(data['workers']) > 0
         return
 
     def test_worker(self):
+        worker = 'test_worker'
+
         # specific worker not running
-        output = subprocess.check_output('flask celery status')
-        assert False
+        output = subprocess.check_output('flask celery status', shell=True)
+        data = json.loads(output.decode('utf-8'))
+        names = list(map(lambda x: x.split('@')[0], data['workers'].keys()))
+        assert worker not in names
 
         # start workers
-        worker1 = subprocess.popen('exec flask celery worker -n foo')
-        worker2 = subprocess.popen('exec flask celery worker')
+        subprocess.Popen('flask celery worker -n {}@%h'.format(worker), stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True)
+        subprocess.Popen('flask celery worker', stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True)
 
-        # check that workers are working
-        output = subprocess.check_output('flask celery status')
+        # wait for status checking to return
+        timeout = 0
+        while timeout < 5:
+            output = subprocess.check_output('flask celery status', shell=True)
+            data = json.loads(output.decode('utf-8'))
+            if len(data['workers']):
+                break
+            timeout += 1
 
-        # terminate processes
-        worker1.terminate()
-        worker2.terminate()
-
-        # assert on final results
-        assert False
+        # assert specific worker is running
+        names = list(map(lambda x: x.split('@')[0], data['workers'].keys()))
+        assert worker in names
         return
 
     def test_flower(self):
         # start flower
-        proc = subprocess.popen('exec flask celery flower --port=9162')
+        proc = subprocess.popen('exec flask celery flower --port=9162', shell=True)
 
         # ping and make assertions
         response = requests.post('https://localhost:9162/ping')
@@ -72,15 +94,15 @@ class TestCli(object):
 
     def test_cluster(self):
         # check celery status to make sure no workers running
-        output = subprocess.check_output('flask celery status')
+        output = subprocess.check_output('flask celery status', shell=True)
         assert False
 
         # start cluster
-        proc = subprocess.popen('flask celery cluster')
+        proc = subprocess.popen('flask celery cluster', shell=True)
         assert False
 
         # check cluster status
-        output = subprocess.check_output('flask celery status')
+        output = subprocess.check_output('flask celery status', shell=True)
         assert False
 
         # submit tasks via api
@@ -102,6 +124,6 @@ class TestCli(object):
 
         # stop cluster and check status
         proc.terminate()
-        output = subprocess.check_output('flask celery status')
+        output = subprocess.check_output('flask celery status', shell=True)
         assert False
         return
