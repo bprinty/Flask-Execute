@@ -24,3 +24,6 @@ htmlcov
 
 # Sphinx
 docs/_build
+
+# artifacts
+*.log
