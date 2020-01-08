@@ -450,6 +450,10 @@ Celery also provides different utilities for `inspecting <https://docs.celerypro
 
 .. code-block:: python
 
+    # TODO: consider
+    >>> celery.inspect.active()
+    >>> celery.control.heartbeat()
+
     # inspect active tasks
     >>> celery.active()
 
