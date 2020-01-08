@@ -61,7 +61,12 @@ class cli:
 
 # entry points
 # ------------
-@entrypoint.command('worker')
+
+# TODO: CONSIDER EXTENDING ALL ENTRY POINTS FROM CELERY VIA FLASK
+
+@entrypoint.command('worker', context_settings=dict(
+    ignore_unknown_options=True,
+))
 @click.argument('args', nargs=-1, type=click.UNPROCESSED)
 def worker(args):
     """
@@ -110,7 +115,11 @@ def status():
     """
     Check statuses of celery workers.
     """
+    result = {'ping': False, 'workers': {}}
     celery = current_app.extensions['celery']
-    result = celery.status()
+    workers = celery.status()
+    if len(workers):
+        result['workers'] = workers
+        result['ping'] = celery.ping()
     print(json.dumps(result, indent=2))
     return result
