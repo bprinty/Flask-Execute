@@ -329,7 +329,7 @@ class Celery(object):
         """
         Start local celery workers specified in config.
         """
-        running = self.status(ping=False)
+        running = self.status()
 
         # reformat worker specification
         global WORKERS
@@ -365,7 +365,8 @@ class Celery(object):
         # wait for workers to start
         timeout = 0
         while timeout < 5:
-            if self.status(ping=False):
+            check = self.status()
+            if check:
                 break
             timeout += 1
         if timeout == 5:
@@ -438,7 +439,7 @@ class Celery(object):
         task = AsyncResult(ident)
         return Future(task)
 
-    def status(self, ping=True):
+    def status(self):
         """
         Return status of celery server.
         """
@@ -453,28 +454,15 @@ class Celery(object):
         except Exception:
             pass
 
-        # exit if ping not necessary
-        if not ping:
-            return workers
-
-        # run simple command
-        ping = self.ping()
-        if not ping:
-            return dict(
-                ping=ping,
-                error='Could not poll status of celery workers. Workers are all down or unavailable.'
-            )
-
-        return dict(
-            ping=ping,
-            workers=workers,
-        )
+        return workers
 
     def ping(self, timeout=3, tries=2):
         """
         Ping celery workers by running simple task and
         return worker health status.
         """
+        # TODO: investigate use of inspect for functionality
+        # output = cli.output('inspect ping')
         future = self.submit(ping, 'pong')
         for i in range(tries):
             try:
