@@ -10,6 +10,7 @@
 import os
 import atexit
 import subprocess
+from datetime import datetime
 import logging
 import click
 import json
@@ -20,12 +21,12 @@ from werkzeug.local import LocalProxy
 from celery import Celery as CeleryFactory
 from celery.exceptions import TaskRevokedError
 
-from .cli import cli, entrypoint
+from .cli import cli, entrypoint, CommandManager
 
 
 # config
 # ------
-WORKERS = {}
+PROCESSES = {}
 
 
 # proxies
@@ -55,24 +56,14 @@ def dispatch(func, *args, **kwargs):
 
 
 @atexit.register
-def stop_workers(timeout=5):
+def stop_processes(timeout=5):
     """
     Clean all processes spawned by this plugin.
-
-    TODO: MIGHT NOT BE NECESSARY
     """
-    global WORKERS
-    for key in WORKERS:
-        logging.info('Shutting down worker {}'.format(key))
-        WORKERS[key].terminate()
+    global PROCESSES
+    for key in PROCESSES:
+        PROCESSES[key].terminate()
     return
-
-
-def ping(input):
-    """
-    NOOP function for pinging workers.
-    """
-    return input
 
 
 # classes
@@ -248,21 +239,23 @@ class Celery(object):
     """
 
     def __init__(self, app=None):
-        if app is not None:
-            self.init_app(app)
         self._started = False
         self._registered = []
+        self.inspect = CommandManager('inspect')
+        self.control = CommandManager('control')
+        if app is not None:
+            self.init_app(app)
         return
 
     def init_app(self, app):
+
+        print('name', app.import_name)
         # defaults
         self.app = app
         self.app.config.setdefault('CELERY_BROKER_URL', 'redis://localhost:6379')
         self.app.config.setdefault('CELERY_RESULT_BACKEND', 'redis://localhost:6379')
         self.app.config.setdefault('CELERY_WORKERS', 1)
         self.app.config.setdefault('CELERY_START_LOCAL_WORKERS', True)
-        self.app.config.setdefault('CELERY_START_LOCAL_MONITOR', False)
-        self.app.config.setdefault('CELERY_MONITOR_PORT', None)
         self.app.config.setdefault('CELERY_ACCEPT_CONTENT', ['json', 'pickle'])
         self.app.config.setdefault('CELERY_TASK_SERIALIZER', 'pickle')
         self.app.config.setdefault('CELERY_RESULT_SERIALIZER', 'pickle')
@@ -319,20 +312,28 @@ class Celery(object):
         # register dynamic task
         self.wrapper = self.controller.task(dispatch)
         for task in self._registered:
-            task = self.controller.task()(task)
+            if not hasattr(task, 'delay'):
+                self.controller.task(task)
 
         # register cli entry points
         self.app.cli.add_command(entrypoint)
         return
 
-    def start(self):
+    @property
+    def processes(self):
+        """
+        Plugin proxy for global processes data.
+        """
+        global PROCESSES
+        return PROCESSES
+
+    def start(self, timeout=30, log=True):
         """
         Start local celery workers specified in config.
         """
         running = self.status()
 
         # reformat worker specification
-        global WORKERS
         if isinstance(self.app.config['CELERY_WORKERS'], int):
             workers = [
                 'worker{}'.format(i + 1)
@@ -345,33 +346,38 @@ class Celery(object):
                 'No rule for processing input type {} for `CELERY_WORKERS` '
                 'option.'.format(type(self.app.config['CELERY_WORKERS'])))
 
+        # make sure log directory exists
+        if not os.path.exists(self.app.config['CELERY_LOG_DIR']):
+            os.makedirs(self.app.config['CELERY_LOG_DIR'])
+
         # spawn local workers
         for worker in workers:
+
             # don't start worker if already running
             if running.get(worker) == 'OK':
                 continue
 
             # configure logging
-            current_app.logger.info('spawning local worker: {}'.format(worker))
             level = self.app.config['CELERY_LOG_LEVEL']
-            logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], worker + '.log')
+            cmd = 'worker --loglevel={} -n {}@%h'.format(level, worker)
+
+            # add logging to command
+            if log:
+                logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], worker + '.log')
+                cmd += ' --logfile={}'.format(logfile)
 
             # start worker
-            with open(logfile, 'a') as lf:
-                proc = cli.popen("worker --loglevel={} -n {}@%h".format(level, worker), stdout=lf)
-
-            WORKERS[worker] = proc
+            self.processes[worker] = cli.popen(cmd)
 
         # wait for workers to start
-        timeout = 0
-        while timeout < 5:
-            check = self.status()
-            if check:
+        then, delta = datetime.now(), 0
+        while delta < timeout:
+            delta = (datetime.now() - then).seconds
+            if self.status():
                 break
-            timeout += 1
-        if timeout == 5:
+        if delta >= timeout:
             raise AssertionError(
-                'Could not connect to celery workers after {} attempts. '
+                'Could not connect to celery workers after {} seconds. '
                 'See worker logs for details.'.format(timeout)
             )
         return
@@ -380,24 +386,23 @@ class Celery(object):
         """
         Pre-register task with celery.
         """
-        # if len(args) == 1 and callable(args[0]):
-        #     self._registered.append((args[0]))
-        #     return
-        # def _(func):
-        #     self._registered.append(func)
-        # return _
-        # def wrapper(*args, **kwargs):
-        #     def decorator(func):
-        #         def _(*args, **kwargs):
-        #             return func(*args, **kwargs)
-        #         return _
-        #     return decorator
-        # TODO: partial dispatch function with specified function?
-        return func
+        if not hasattr(self, 'controller'):
+            self._registered.append(func)
+            return func
+        else:
+            return self.controller.task(func)
 
-    def schedule(self, func):
-        # TODO: need to figure out this api
-        return func
+    def schedule(self, seconds=None, minute=None,
+                 hour=None, day_of_week=None, day_of_month=None,
+                 month_of_year=None):
+        """
+        Schedule task to run according to specified CRON schedule.
+        """
+        def decorator(func):
+            def _(*args, **kwargs):
+                return func(*args, **kwargs)
+            return _
+        return decorator
 
     def submit(self, func, *args, **kwargs):
         """
@@ -443,7 +448,6 @@ class Celery(object):
         """
         Return status of celery server.
         """
-        # check specific worker statuses
         workers = {}
         try:
             output = cli.output('status')
@@ -451,103 +455,6 @@ class Celery(object):
                 if '@' in stat:
                     worker, health = stat.split(': ')
                     workers[worker] = health
-        except Exception:
+        except subprocess.CalledProcessError:
             pass
-
-        return workers
-
-    def ping(self, timeout=3, tries=2):
-        """
-        Ping celery workers by running simple task and
-        return worker health status.
-        """
-        # TODO: investigate use of inspect for functionality
-        # output = cli.output('inspect ping')
-        future = self.submit(ping, 'pong')
-        for i in range(tries):
-            try:
-                future.wait(timeout)
-                return future.successful()
-            except Exception:
-                pass
-        return False
-
-    def active(self, collapse=False):
-        """
-        Return information about active celery commands.
-
-        Args:
-            collapse (bool): Collapse result into single list
-                of active task ids (no worker information sent back)
-        """
-        workers = {}
-        current = None
-
-        # iterate though output and build data structure
-        for line in cli.output('inspect active').split('\n'):
-            if '- empty -' in line:
-                continue
-            elif '->' in line:
-                current = line.replace('-> ', '').split(': ')[0]
-                workers[current] = []
-            elif '* ' in line:
-                data = eval(line.replace('    * ', ''))
-                workers[current].append(data['id'])
-
-        # collapse results if specified
-        if collapse:
-            return reduce(lambda x, y: x + y, [workers[k] for k in workers])
-        return workers
-
-    def revoked(self, collapse=False):
-        """
-        Return information about scheduled celery commands.
-
-        Args:
-            collapse (bool): Collapse result into single list
-                of active task ids (no worker information sent back)
-        """
-        workers = {}
-        current = None
-
-        # iterate though output and build data structure
-        for line in cli.output('inspect revoked').split('\n'):
-            if '- empty -' in line:
-                continue
-            elif '->' in line:
-                current = line.replace('-> ', '').split(': ')[0]
-                workers[current] = []
-            elif '* ' in line:
-                workers[current].append(line.replace('    * ', ''))
-
-        # collapse results if specified
-        if collapse:
-            return reduce(lambda x, y: x + y, [workers[k] for k in workers])
-        return workers
-
-    def scheduled(self):
-        """
-        Return information about scheduled celery commands.
-        """
-        return cli.output('inspect scheduled')
-
-    def stats(self):
-        """
-        Return information about scheduled celery commands.
-        """
-        workers = {}
-        current = None
-
-        # iterate through output and build data structure
-        for line in cli.output('inspect stats').split('\n'):
-            if '->' in line:
-                current = line.replace('-> ', '').split(': ')[0]
-                workers[current] = ''
-            elif current is not None:
-                workers[current] += line[4:]
-
-        # parse into json
-        for key in workers:
-            workers[key] = json.loads(workers[key])
-
         return workers
