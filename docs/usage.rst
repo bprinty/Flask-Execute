@@ -127,6 +127,8 @@ If you like the declarative syntax celery uses to register tasks, you can still 
 
     add.delay(1, 2)
 
+.. TODO: ADD THOROUGH DOCUMENTATION ON THE DIFFERENT MECHANISMS OF TASK REGISTRATION - DYNAMIC VS NON-DYNAMIC, AND EXPLICITLY DESCRIBE WHY DYNAMIC IS NOT SUPPORTED FOR THE FACTORY PATTERN - THEY SHOULD USE CELERY.SUBMIT()
+
 This declarative mechanism for registering tasks is particularly useful for scheduling tasks to run periodically via Celery's ``cron`` tool.
 
 This module also provides a wrapper around scheduling tasks to make the process a bit more intuitive. Here's how you schedule a task to run every night at midnight.
