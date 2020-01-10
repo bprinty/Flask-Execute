@@ -395,13 +395,15 @@ class Celery(object):
         else:
             return self.controller.task
 
-    def schedule(self, *args, **kwargs):
+    def schedule(self, schedule, args=tuple(), kwargs=dict(), name=None, **kwargs):
         """
         Schedule task to run according to specified CRON schedule.
         """
         sargs = kwargs.pop('args', ())
-        skwargs = kwargs.pop('kwargs', {})
+        skwargs = kwargs.pop('kwargs', {})            
         if not len(args):
+            cargs = {}
+            for param in []:
             args = [crontab(**kwargs)]
         def decorator(func):
             def _(*args, **kwargs):

@@ -2,6 +2,7 @@
 
 from flask import Flask, jsonify
 from flask_celery import Celery
+from celery.schedules import crontab
 
 app = Flask(__name__)
 celery = Celery(app)
@@ -10,7 +11,14 @@ celery = Celery(app)
 def ping():
     return 'pong'
 
-@celery.schedule(hour=0, minute=0, args=(True,), kwargs={})
+@celery.schedule(
+    crontab(
+        hour=0,
+        minute=0
+    ),
+    args=(True,),
+    kwargs={}
+)
 def beat(input):
     return input
 
