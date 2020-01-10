@@ -5,17 +5,22 @@ from flask_celery import Celery
 
 app = Flask(__name__)
 celery = Celery(app)
+# celery = Celery()
 
 def ping():
     return 'pong'
 
-@celery.schedule(hour=0, minute=0)
-def beat():
-    return True
+@celery.schedule(hour=0, minute=0, args=(True,), kwargs={})
+def beat(input):
+    return input
 
 @celery.task
 def noop():
     return
+
+@app.route('/')
+def index():
+    return jsonify(status='ok')
 
 @app.route('/ping')
 def ping_handler():
@@ -29,7 +34,6 @@ def task_handler():
     task.wait()
     return jsonify(msg='done' if task.result is None else 'fail')
 
-import os
+# celery.init_app(app)
 if __name__ == '__main__':
-    import pdb; pdb.set_trace()
     app.run()
