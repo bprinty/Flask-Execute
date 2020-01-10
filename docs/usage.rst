@@ -28,6 +28,33 @@ This package is functionally a wrapper around the process of configuring celery 
 The features listed above simplify the process of configuring Celery to work with Flask and make working with Celery a more enjoyable experience. If you don't agree with those sentiments or like the way Celery historically has been configured with Flask applications, feel free to ignore the rest of this documentation. This extension isn't necessary for configuring your application to use celery, just like ``Flask-SQLAlchemy`` isn't necessary for configuring your application to use ``SQLAlchemy``.
 
 
+Setup
+-----
+
+.. TODO: notes on making sure redis is installed and connected?
+
+.. Install redis to automatically start on boot.
+
+.. code-block:: bash
+
+    ~$ brew install redis
+
+    # start automatically
+    ~$ brew services start redis
+
+    # start manually
+    ~$ redis-server
+
+
+Troubleshooting
+---------------
+
+1. ``future.result()`` with timeout never returns and worker logs aren't available.
+
+> Celery workers likely can't connect to redis. Run ```flask celery worker``` to debug the connection. See the `Setup`_ section for information on installing and running redis locally.
+
+
+
 Registration
 ------------
 
