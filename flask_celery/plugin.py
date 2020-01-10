@@ -20,6 +20,7 @@ from flask.cli import AppGroup
 from werkzeug.local import LocalProxy
 from celery import Celery as CeleryFactory
 from celery.exceptions import TaskRevokedError
+from celery.schedules import crontab
 
 from .cli import cli, entrypoint, CommandManager
 
@@ -249,13 +250,13 @@ class Celery(object):
 
     def init_app(self, app):
 
-        print('name', app.import_name)
         # defaults
         self.app = app
         self.app.config.setdefault('CELERY_BROKER_URL', 'redis://localhost:6379')
         self.app.config.setdefault('CELERY_RESULT_BACKEND', 'redis://localhost:6379')
         self.app.config.setdefault('CELERY_WORKERS', 1)
         self.app.config.setdefault('CELERY_START_LOCAL_WORKERS', True)
+        self.app.config.setdefault('CELERY_START_TIMEOUT', 10)
         self.app.config.setdefault('CELERY_ACCEPT_CONTENT', ['json', 'pickle'])
         self.app.config.setdefault('CELERY_TASK_SERIALIZER', 'pickle')
         self.app.config.setdefault('CELERY_RESULT_SERIALIZER', 'pickle')
@@ -266,14 +267,9 @@ class Celery(object):
         self.app.config.setdefault('CELERY_FLOWER_PORT', 5555)
         self.app.config.setdefault('CELERY_FLOWER_ADDRESS', '127.0.0.1')
 
-        # TODO: IMPORTANT
-        #       set FLASK_APP if not set from app.import_name - allows
-        #       users running app.py directly to have things just work
-        # raise NotImplementedError
-
         # set up controller
         self.controller = CeleryFactory(
-            self.app.import_name,
+            self.app.name,
             backend=self.app.config['CELERY_RESULT_BACKEND'],
             broker=self.app.config['CELERY_BROKER_URL'],
         )
@@ -327,10 +323,11 @@ class Celery(object):
         global PROCESSES
         return PROCESSES
 
-    def start(self, timeout=30, log=True):
+    def start(self, timeout=None, log=True):
         """
         Start local celery workers specified in config.
         """
+        timeout = timeout or self.app.config['CELERY_START_TIMEOUT']
         running = self.status()
 
         # reformat worker specification
@@ -354,7 +351,12 @@ class Celery(object):
         for worker in workers:
 
             # don't start worker if already running
-            if running.get(worker) == 'OK':
+            available = False
+            for name, status in running.items():
+                if worker + '@' in name:
+                    available = status == 'OK'
+                    break
+            if available:
                 continue
 
             # configure logging
@@ -382,7 +384,8 @@ class Celery(object):
             )
         return
 
-    def task(self, func):
+    @property
+    def task(self):
         """
         Pre-register task with celery.
         """
@@ -390,14 +393,16 @@ class Celery(object):
             self._registered.append(func)
             return func
         else:
-            return self.controller.task(func)
+            return self.controller.task
 
-    def schedule(self, seconds=None, minute=None,
-                 hour=None, day_of_week=None, day_of_month=None,
-                 month_of_year=None):
+    def schedule(self, *args, **kwargs):
         """
         Schedule task to run according to specified CRON schedule.
         """
+        sargs = kwargs.pop('args', ())
+        skwargs = kwargs.pop('kwargs', {})
+        if not len(args):
+            args = [crontab(**kwargs)]
         def decorator(func):
             def _(*args, **kwargs):
                 return func(*args, **kwargs)
@@ -414,6 +419,12 @@ class Celery(object):
            not self._started:
             self.start()
             self._started = True
+
+        # reimport function for serialization if not using flask cli
+        if '__main__' in func.__module__:
+            mod = func.__module__.replace('__main__', self.app.name)
+            app = __import__(mod, fromlist=[func.__name__])
+            func = getattr(app, func.__name__)
 
         # evaluate context locals to avoid pickling issues
         args = list(args)
