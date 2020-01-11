@@ -6,7 +6,6 @@ from celery.schedules import crontab
 
 app = Flask(__name__)
 celery = Celery(app)
-# celery = Celery()
 
 def ping():
     return 'pong'
@@ -24,7 +23,11 @@ def beat(input):
 
 @celery.task
 def noop():
-    return
+    return True
+
+@celery.task(name='test')
+def nope():
+    return True
 
 @app.route('/')
 def index():
@@ -38,10 +41,11 @@ def ping_handler():
 
 @app.route('/task')
 def task_handler():
-    task = noop.delay()
-    task.wait()
-    return jsonify(msg='done' if task.result is None else 'fail')
+    task1 = celery.task.noop.delay()
+    task1.wait()
+    task2 = celery.task['test'].delay()
+    task2.wait()
+    return jsonify(success=task1.result & task2.result)
 
-# celery.init_app(app)
 if __name__ == '__main__':
     app.run()
