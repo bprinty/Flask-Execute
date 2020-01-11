@@ -11,7 +11,7 @@ import os
 import pytest
 import logging
 
-from .fixtures import db, create_app
+from .fixtures import db, create_app, add
 
 
 # config
@@ -111,5 +111,9 @@ def client(application):
 
 @pytest.fixture(scope='session')
 def celery(application, client):
-    yield application.extensions['celery']
+    celery = application.extensions['celery']
+    future = celery.submit(add, 1, 2)
+    result = future.result(timeout=5)
+    assert result == 3
+    yield celery
     return
