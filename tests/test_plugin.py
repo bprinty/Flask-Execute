@@ -149,7 +149,7 @@ class TestFuturePool:
     pass
 
 
-class TestStatus:
+class TestIntegration:
 
     def test_api(self, client, celery):
         # submit tasks via api
@@ -175,43 +175,39 @@ class TestStatus:
         assert success > 0
         return
 
-    def test_status_checks(self, celery):
+
+class TestCommandManagers:
+
+    def test_inspect(self, celery):
         celery.submit(sleep).cancel(wait=True)
         celery.map(add, [1, 1], [1, 1], [1, 1])
-        celery.map(sleep, [10], [10], [10], [10], [10])
+        celery.map(sleep, [20], [20], [20], [20], [20])
+        celery.map(sleep, [20], [20], [20], [20], [20])
 
         # active
-        active = celery.active(collapse=True)
+        workers = celery.inspect.active()
+        active = workers[list(workers.keys())[0]]
         assert len(active) > 0
-        future = celery.get(active[0])
-        assert active[0] == future.id
-        workers = celery.active()
-        assert len(workers) == 1
+        future = celery.get(active[0]['id'])
+        assert active[0]['id'] == future.id
 
         # revoked
-        revoked = celery.revoked(collapse=True)
+        workers = celery.inspect.revoked()
+        revoked = workers[list(workers.keys())[0]]
         assert len(revoked) > 0
         future = celery.get(revoked[0])
         assert revoked[0] == future.id
-        assert future.cancelled()
-        workers = celery.revoked()
-        assert len(workers) == 1
-
-        # scheduled
-        # TODO
-        # scheduled = celery.scheduled()
-        # print('scheduled {}'.format(scheduled))
-        return
-
-    def test_celery_stats(self, celery):
-        celery.map([[add, 1, 2], [add, 3, 4], [add, 5, 6]])
-        celery.submit(add, 7, 8).result(timeout=1)
-        celery.submit(sleep)
 
         # stats
-        stats = celery.stats()
+        stats = celery.inspect.stats()
         assert len(stats) == 1
         key = list(stats.keys())[0]
         stat = stats[key]
         assert 'broker' in stat
+        return
+
+    def test_control(self, celery):
+        workers = celery.control.heartbeat()
+        beat = workers[list(workers.keys())[0]]
+        assert beat is None
         return
