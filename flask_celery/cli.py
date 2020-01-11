@@ -103,7 +103,13 @@ class CommandManager(object):
 
         # make call and parse result
         output = cli.output(cmd)
-        return json.loads(output)
+        data = json.loads(output)
+        if isinstance(data, (list, tuple)):
+            result = {}
+            for item in data:
+                result.update(item)
+            data = result
+        return data
 
 
 # entry points
@@ -178,7 +184,6 @@ def cluster(args):
     """
     celery = current_app.extensions['celery']
     foreground = '-f' in args or '--foreground' in args
-    procs = []
 
     # starting configured celery workers
     celery.start(log=not foreground)
