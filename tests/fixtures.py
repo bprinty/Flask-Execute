@@ -29,8 +29,9 @@ class Config:
     SQLALCHEMY_ECHO = False
     PROPAGATE_EXCEPTIONS = False
     SQLALCHEMY_DATABASE_URI = 'sqlite:///{}/dev.db'.format(SANDBOX)
-    # CELERY_LOG_DIR = SANDBOX
+    CELERY_LOG_DIR = SANDBOX
     CELERY_WORKERS = ['quorra']
+    # CELERYD_CONCURRENCY = 1
 
 
 # factory
