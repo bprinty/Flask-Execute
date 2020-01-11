@@ -232,6 +232,77 @@ class FuturePool(object):
         return
 
 
+class TaskManager(object):
+    """
+    Object for managing registered celery tasks, providing
+    users a way of submitting tasks via the celery API when
+    using the factory pattern for configuring a flask application.
+    """
+
+    def __init__(self):
+        self.__app__ = None
+        self.__registered__ = {}
+        self.__tasks__ = {}
+        self.__funcs__ = {}
+        return
+
+    def __call__(self, *args, **kwargs):
+        """
+        Proxy for @celery.task decorator to manage two things:
+
+        1. Registration of celery tasks with the Flask-Celery plugin,
+           so the celery application can be configured using an
+           application factory pattern.
+
+        2. Reistration of celery tasks with an instantiated celery
+           application instance.
+
+        .. TODO: More documentation
+        """
+        # plugin hasn't been initialized
+        if self.__app__ is None:
+            def _(func):
+                self.__registered__[func.__name__] = {'func': func, 'args': args, 'kwargs': kwargs}
+                return func
+
+        # plugin has been initialized
+        else:
+            def _(func):
+                func = self.__app__.task(*args, **kwargs)(func)
+                if func.name not in self.__tasks__:
+                    self.__tasks__[func.name] = func
+                    self.__funcs__[func.__name__] = func
+                return func
+
+        # return decorated function if called directly
+        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
+            func, args = args[0], args[1:]
+            return _(func)
+
+        # return inner decorator
+        else:
+            return _
+
+    def init_celery(self, controller):
+        self.__app__ = controller
+        for key, item in self.__registered__.items():
+            if not len(item['args']) and not len(item['kwargs']):
+                self(item['func'])
+            else:
+                self(*item['args'], **item['kwargs'])(item['func'])
+        return
+
+    def __getattr__(self, key):
+        if key not in self.__tasks__:
+            if key not in self.__funcs__:
+                raise AttributeError('Task {} has not been registered'.format(key))
+            return self.__funcs__[key]
+        return self.__tasks__[key]
+
+    def __getitem__(self, key):
+        return self.__getattr__(key)
+
+
 # plugin
 # ------
 class Celery(object):
@@ -241,7 +312,7 @@ class Celery(object):
 
     def __init__(self, app=None):
         self._started = False
-        self._registered = []
+        self.task = TaskManager()
         self.inspect = CommandManager('inspect')
         self.control = CommandManager('control')
         if app is not None:
@@ -307,9 +378,7 @@ class Celery(object):
 
         # register dynamic task
         self.wrapper = self.controller.task(dispatch)
-        for task in self._registered:
-            if not hasattr(task, 'delay'):
-                self.controller.task(task)
+        self.task.init_celery(self.controller)
 
         # register cli entry points
         self.app.cli.add_command(entrypoint)
@@ -384,27 +453,16 @@ class Celery(object):
             )
         return
 
-    @property
-    def task(self):
-        """
-        Pre-register task with celery.
-        """
-        if not hasattr(self, 'controller'):
-            self._registered.append(func)
-            return func
-        else:
-            return self.controller.task
-
-    def schedule(self, schedule, args=tuple(), kwargs=dict(), name=None, **kwargs):
+    def schedule(self, func, *args, **kwargs): # schedule, args=tuple(), kwargs=dict(), name=None, **kwargs):
         """
         Schedule task to run according to specified CRON schedule.
         """
-        sargs = kwargs.pop('args', ())
-        skwargs = kwargs.pop('kwargs', {})            
-        if not len(args):
-            cargs = {}
-            for param in []:
-            args = [crontab(**kwargs)]
+        # sargs = kwargs.pop('args', ())
+        # skwargs = kwargs.pop('kwargs', {})
+        # if not len(args):
+        #     cargs = {}
+        #     for param in []:
+        #     args = [crontab(**kwargs)]
         def decorator(func):
             def _(*args, **kwargs):
                 return func(*args, **kwargs)
