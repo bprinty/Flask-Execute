@@ -8,6 +8,7 @@
 # imports
 # -------
 import json
+import atexit
 import requests
 import subprocess
 
@@ -37,7 +38,6 @@ class TestCli(object):
     def teardown_class(cls):
         global PROCESSES
         for proc in PROCESSES:
-            print('terminate')
             proc.terminate()
             proc.kill()
             proc.wait()
@@ -50,20 +50,17 @@ class TestCli(object):
         assert response.json['result'] == 'pong'
 
         # workers should be running
-        output = subprocess.check_output('flask celery status', shell=True)
-        data = json.loads(output.decode('utf-8'))
-        assert data['ping'] == True
-        assert len(data['workers']) > 0
+        output = subprocess.check_output('flask celery status', stderr=subprocess.STDOUT, shell=True).decode('utf-8')
+        assert 'online' in output
+        assert 'OK' in output
         return
 
     def test_worker(self):
         worker = 'test_worker'
 
         # specific worker not running
-        output = subprocess.check_output('flask celery status', shell=True)
-        data = json.loads(output.decode('utf-8'))
-        names = list(map(lambda x: x.split('@')[0], data['workers'].keys()))
-        assert worker not in names
+        output = subprocess.check_output('flask celery status', stderr=subprocess.STDOUT, shell=True).decode('utf-8')
+        assert worker not in output
 
         # start workers
         subprocess.Popen('flask celery worker -n {}@%h'.format(worker), stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True)
@@ -72,15 +69,13 @@ class TestCli(object):
         # wait for status checking to return
         timeout = 0
         while timeout < 5:
-            output = subprocess.check_output('flask celery status', shell=True)
-            data = json.loads(output.decode('utf-8'))
-            if len(data['workers']):
+            output = subprocess.check_output('flask celery status', stderr=subprocess.STDOUT, shell=True).decode('utf-8')
+            if 'online' in output:
                 break
             timeout += 1
 
         # assert specific worker is running
-        names = list(map(lambda x: x.split('@')[0], data['workers'].keys()))
-        assert worker in names
+        assert worker in output
         return
 
     def test_flower(self):
