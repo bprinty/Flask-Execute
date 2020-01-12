@@ -1,4 +1,16 @@
 #!/usr/bin/env python
+#
+# Script for testing factory pattern plugin instantiation.
+#
+# Testing of different celery applications on the same
+# machine can be difficult, so this script is provide
+# a manual way of checking that functionality around
+# plugin configuration doesn't regress. To test this
+# instantiation method via this file, run (from the
+# root directory of the repository):
+#
+# TODO: STOPPED HERE - FINISH
+# --------------------------------------------------------
 
 from flask import Flask, Blueprint, jsonify
 from flask_celery import Celery
