@@ -7,10 +7,10 @@
 
 # imports
 # -------
+import os
 import sys
 import json
 import click
-import logging
 import subprocess
 from flask import current_app
 from flask.cli import with_appcontext
@@ -60,7 +60,7 @@ class CommandManager(object):
             return self.call(self.name + ' ' + key, *args, **kwargs)
         return _
 
-    def call(self, cmd, timeout=None, destination=None):
+    def call(self, cmd, timeout=None, destination=None, quiet=False):
         """
         Call celery subcommand and return output.
 
@@ -101,8 +101,15 @@ class CommandManager(object):
                 destination = destination.split(',')
             cmd += ' --destination={}'.format(','.join(destination))
 
+        # make call accounting for forced error
+        try:
+            output = cli.output(cmd)
+        except subprocess.CalledProcessError as err:
+            if not quiet:
+                print(err.stdout.decode('utf-8'))
+            return
+
         # make call and parse result
-        output = cli.output(cmd)
         data = json.loads(output)
         if isinstance(data, (list, tuple)):
             result = {}
@@ -117,13 +124,16 @@ class CommandManager(object):
 @click.command('celery', context_settings=dict(
     ignore_unknown_options=True,
 ))
+@click.option('-h', '--help', is_flag=True, help='Returns celery cli help.')
 @click.argument('args', nargs=-1, type=click.UNPROCESSED)
 @with_appcontext
-def entrypoint(args):
+def entrypoint(help, args):
     """
     Run celery command, wrapping application context and references.
 
-    Example:
+    Examples:
+
+    .. code-block:: python
 
         # start local worker
         ~$ flask celery worker
@@ -135,7 +145,11 @@ def entrypoint(args):
         ~$ flask celery inspect stats
 
     For more information on the commands available, see the celery
-    documentation.
+    documentation. You can also use ``-h`` to see the celery cli documentation:
+
+    .. code-block:: python
+
+        ~$ flask celery -h
 
     Along with celery commands, this CLI method also adds the
     ``cluster`` entrypoint for starting all workers associated
@@ -155,19 +169,19 @@ def entrypoint(args):
     To change the nubmer of workers bootstrapped by this command,
     see the ``CELERY_WORKERS`` configuration option with this plugin.
     """
-    if not len(args):
-        return cli.call('-h')
-
     # add config options
     if 'worker' in args:
         args = list(args)
         args.append('--loglevel={}'.format(current_app.config['CELERY_LOG_LEVEL']))
 
+    # dispatch additional entry point
     if 'cluster' in args:
+        # TODO: print out help args if -h
         return cluster(args)
 
-    # parse subcommand
-    return cli.call(' '.join(args))
+    # call command with arguments
+    help = ' --help' if help else ''
+    return cli.call(' '.join(args) + help)
 
 
 def cluster(args):
@@ -183,26 +197,40 @@ def cluster(args):
         args (list): celery command arguments.
     """
     celery = current_app.extensions['celery']
-    foreground = '-f' in args or '--foreground' in args
 
     # starting configured celery workers
-    celery.start(log=not foreground)
+    celery.start()
 
     # starting flower monitor (if specified)
     if '-n' not in args and '--no-flower' not in args and \
        current_app.config['CELERY_FLOWER']:
+        # make sure log dir is specified
+        if not os.path.exists(current_app.config['CELERY_LOG_DIR']):
+            os.makedirs(current_app.config['CELERY_LOG_DIR'])
+
+        # start flower
         proc = cli.popen(
-            'flower --address={} --port={}'.format(
+            'flower --address={} --port={} --logging={} --log-file-prefix={}'.format(
                 current_app.config['CELERY_FLOWER_ADDRESS'],
                 current_app.config['CELERY_FLOWER_PORT'],
+                current_app.config['CELERY_LOG_LEVEL'],
+                os.path.join(current_app.config['CELERY_LOG_DIR'], 'flower.log')
             )
         )
+
+        # monitor logs and process
+        celery.logs.append(os.path.join(current_app.config['CELERY_LOG_DIR'], 'flower.log'))
         celery.processes['flower'] = proc
 
-    # wait for termination signal
+    # check available processes
+    if not len(celery.logs):
+        sys.stderr.write('\nCelery cluster could not be started - workers already running or error starting workers. See worker logs for details\n')
+        return
+
+    # tail logs
+    proc = subprocess.Popen(['tail', '-F'] + celery.logs, stdout=subprocess.PIPE)
+    celery.processes['tail'] = proc
     while True:
-        for key in celery.processes:
-            proc = celery.processes[key]
-            for line in iter(proc.stderr.readline, b''):
-                sys.stderr.write(line.decode('utf-8'))
+        for line in iter(proc.stdout.readline, b''):
+            sys.stderr.write(line.decode('utf-8'))
     return
