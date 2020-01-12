@@ -200,7 +200,7 @@ class TestCommandManagers:
 
         # stats
         stats = celery.inspect.stats()
-        assert len(stats) == 1
+        assert len(stats) > 0
         key = list(stats.keys())[0]
         stat = stats[key]
         assert 'broker' in stat
