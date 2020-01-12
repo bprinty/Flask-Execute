@@ -312,6 +312,7 @@ class Celery(object):
 
     def __init__(self, app=None):
         self._started = False
+        self.logs = []
         self.task = TaskManager()
         self.inspect = CommandManager('inspect')
         self.control = CommandManager('control')
@@ -392,7 +393,7 @@ class Celery(object):
         global PROCESSES
         return PROCESSES
 
-    def start(self, timeout=None, log=True):
+    def start(self, timeout=None):
         """
         Start local celery workers specified in config.
         """
@@ -433,9 +434,9 @@ class Celery(object):
             cmd = 'worker --loglevel={} -n {}@%h'.format(level, worker)
 
             # add logging to command
-            if log:
-                logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], worker + '.log')
-                cmd += ' --logfile={}'.format(logfile)
+            logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], worker + '.log')
+            self.logs.append(logfile)
+            cmd += ' --logfile={}'.format(logfile)
 
             # start worker
             self.processes[worker] = cli.popen(cmd)
@@ -452,6 +453,12 @@ class Celery(object):
                 'See worker logs for details.'.format(timeout)
             )
         return
+
+    def stop(self, timeout=5):
+        """
+        Stop all processes started by this plugin.
+        """
+        return stop_processes(timeout=5)
 
     def schedule(self, func, *args, **kwargs): # schedule, args=tuple(), kwargs=dict(), name=None, **kwargs):
         """
