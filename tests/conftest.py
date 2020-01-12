@@ -115,5 +115,9 @@ def celery(application, client):
     future = celery.submit(add, 1, 2)
     result = future.result(timeout=5)
     assert result == 3
+
     yield celery
+
+    celery.stop()
+    celery.control.shutdown(quiet=True)
     return
