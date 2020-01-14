@@ -55,6 +55,9 @@ def test_pattern(app):
     response = requests.get('http://127.0.0.1:5000/task')
     assert response.json() == {'success': True}
 
+    # use flower to check sheduled tasks
+    # TODO: THIS
+
     # wait for flower availability
     with timeout(10) as to:
         while True:
