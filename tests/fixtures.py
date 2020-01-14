@@ -56,7 +56,7 @@ class Config:
     SQLALCHEMY_DATABASE_URI = 'sqlite:///{}/dev.db'.format(SANDBOX)
     CELERY_LOG_DIR = SANDBOX
     CELERY_WORKERS = ['quorra']
-    # CELERYD_CONCURRENCY = 1
+    CELERYD_CONCURRENCY = 4
 
 
 # factory
