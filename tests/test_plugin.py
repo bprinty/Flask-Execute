@@ -15,8 +15,8 @@ from .fixtures import add, sleep, fail, task_id, task
 from .fixtures import db, Item
 
 
-# session
-# -------
+# tests
+# -----
 class TestBase:
 
     def test_submit(self, celery):
@@ -46,6 +46,13 @@ class TestBase:
         assert future.done()
         return
 
+    def test_status(self, celery):
+        status = celery.status()
+        assert len(status)
+        worker = list(status.keys())[0]
+        assert status[worker] == 'OK'
+        return
+
     def test_get(self, celery):
         future = celery.submit(add, 1, 2)
         future = celery.get(future.id)
@@ -53,100 +60,6 @@ class TestBase:
         assert isinstance(future, Future)
         assert result == 3
         return
-
-    # def test_registration(self):
-    #     future = task.delay()
-    #     future.wait(timeout=1)
-    #     result = future.result
-    #     assert result
-    #     return
-
-
-class TestFuture:
-
-    def test_result(self, celery):
-        # submit long command
-        future = celery.submit(add, 1, 2)
-        assert future.status == 'PENDING'
-        assert not future.done()
-        assert future.running()
-
-        # wait for timeout
-        result = future.result(timeout=1)
-        assert result == 3
-        assert not future.running()
-        assert future.done()
-        assert not future.running()
-        assert not future.cancelled()
-        assert future.status == 'SUCCESS'
-        return
-
-    def test_exception(self, celery):
-        # submit failing task and assert result
-        future = celery.submit(fail)
-        with pytest.raises(AssertionError):
-            future.result(timeout=1)
-
-        # assert exception details
-        exe = future.exception()
-        assert isinstance(exe, AssertionError)
-        assert str(exe) == 'fail'
-        assert future.state == 'FAILURE'
-        assert not future.running()
-        return
-
-    def test_cancel(self, celery):
-        # submit long command
-        future = celery.submit(sleep, 3)
-        assert future.status == 'PENDING'
-        assert future.running()
-        assert not future.done()
-
-        # cancel task and look at result
-        future.cancel(wait=True, timeout=1)
-        assert future.status == 'REVOKED'
-        assert future.cancelled()
-        assert not future.running()
-        assert future.done()
-        return
-
-    def test_callback(self, celery):
-        # add callback function
-        def callback(task):  ## noqa
-            task = Item(name='callback')
-            db.session.add(task)
-            db.session.commit()
-            return
-
-        # submit task and add callback
-        future = celery.submit(add, 1, 2)
-        future.add_done_callback(callback)
-
-        # assert item hasn't been created yet
-        item = Item.query.filter_by(name='callback').first()
-        assert item is None
-        future.result(timeout=1)
-
-        # after task finishes, assert item is created
-        item = Item.query.filter_by(name='callback').first()
-        assert item is not None
-        return
-
-    def test_running(self, celery):
-        # implicitly tested by other methods\
-        return
-
-    def test_cancelled(self, celery):
-        # implicitly tested by other methods
-        return
-
-    def test_done(self, celery):
-        # implicitly tested by other methods
-        return
-
-
-class TestFuturePool:
-    pass
 
 
 class TestIntegration:
@@ -173,41 +86,4 @@ class TestIntegration:
             if 'SUCCESS' in response.json['status']:
                 success += 1
         assert success > 0
-        return
-
-
-class TestCommandManagers:
-
-    def test_inspect(self, celery):
-        celery.submit(sleep).cancel(wait=True)
-        celery.map(add, [1, 1], [1, 1], [1, 1])
-        celery.map(sleep, [20], [20], [20], [20], [20])
-        celery.map(sleep, [20], [20], [20], [20], [20])
-
-        # active
-        workers = celery.inspect.active()
-        active = workers[list(workers.keys())[0]]
-        assert len(active) > 0
-        future = celery.get(active[0]['id'])
-        assert active[0]['id'] == future.id
-
-        # revoked
-        workers = celery.inspect.revoked()
-        revoked = workers[list(workers.keys())[0]]
-        assert len(revoked) > 0
-        future = celery.get(revoked[0])
-        assert revoked[0] == future.id
-
-        # stats
-        stats = celery.inspect.stats()
-        assert len(stats) > 0
-        key = list(stats.keys())[0]
-        stat = stats[key]
-        assert 'broker' in stat
-        return
-
-    def test_control(self, celery):
-        workers = celery.control.heartbeat()
-        beat = workers[list(workers.keys())[0]]
-        assert beat is None
         return
