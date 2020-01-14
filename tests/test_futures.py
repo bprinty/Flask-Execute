@@ -148,28 +148,28 @@ class TestFuturePool:
         assert pool.done()
         return
 
-    # def test_callback(self, celery):
-    #     # add callback function
-    #     def callback(task):  ## noqa
-    #         task = Item(name='callback')
-    #         db.session.add(task)
-    #         db.session.commit()
-    #         return
-    #
-    #     # submit task and add callback
-    #     future = celery.submit(add, 1, 2)
-    #     future.add_done_callback(callback)
-    #
-    #     # assert item hasn't been created yet
-    #     item = Item.query.filter_by(name='callback').first()
-    #     assert item is None
-    #     future.result(timeout=1)
-    #
-    #     # after task finishes, assert item is created
-    #     item = Item.query.filter_by(name='callback').first()
-    #     assert item is not None
-    #     return
-    #
+    def test_callback(self, celery):
+        # add callback function
+        def callback(task):  ## noqa
+            task = Item(name='pool-callback')
+            db.session.add(task)
+            db.session.commit()
+            return
+
+        # submit task and add callback
+        pool = celery.map(add, [1, 2], [1, 2])
+        pool.add_done_callback(callback)
+
+        # assert item hasn't been created yet
+        item = Item.query.filter_by(name='pool-callback').first()
+        assert item is None
+        pool.result(timeout=1)
+
+        # after task finishes, assert item is created
+        item = Item.query.filter_by(name='pool-callback').first()
+        assert item is not None
+        return
+
     def test_running(self, celery):
         # implicitly tested by other methods\
         return

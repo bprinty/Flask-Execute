@@ -8,7 +8,7 @@
 
 # imports
 # -------
-...
+from celery.result import ResultSet
 
 
 # classes
@@ -96,7 +96,11 @@ class FuturePool(object):
 
     def __init__(self, futures):
         self.futures = futures
+        self.__proxy__ = ResultSet([future.__proxy__ for future in futures])
         return
+
+    def __getattr__(self, key):
+        return getattr(self.__proxy__, key)
 
     def __iter__(self):
         for future in self.futures:
@@ -196,11 +200,11 @@ class FuturePool(object):
             for future in self.futures
         ]
 
-    # def add_done_callback(self, fn):
-    #     """
-    #     Attaches the callable fn to the future pool. fn will be called, with
-    #     the task as its only argument, when the future is cancelled
-    #     or finishes running.
-    #     """
-    #     self.__proxy__.then(fn)
-    #     return self
+    def add_done_callback(self, fn):
+        """
+        Attaches the callable fn to the future pool. fn will be
+        called, with the task as its only argument, when the
+        future is cancelled or finishes running.
+        """
+        self.__proxy__.then(fn)
+        return self
