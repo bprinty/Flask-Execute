@@ -1,4 +1,13 @@
 #!/usr/bin/env python
+#
+# Application config testing factory method for instnatiating
+# flask application and associated plugins. To run the tests
+# associated with this file, execute:
+#
+# .. code-block:: bash
+#
+#      ~$ pytest tests/isolated/test_factory.py
+# ------------------------------------------------------------
 
 from flask import Flask, jsonify
 from flask_celery import Celery

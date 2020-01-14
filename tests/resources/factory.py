@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 #
-# Script for testing factory pattern plugin instantiation.
+# Application config testing factory method for instnatiating
+# flask application and associated plugins. To run the tests
+# associated with this file, execute:
 #
-# Testing of different celery applications on the same
-# machine can be difficult, so this script is provide
-# a manual way of checking that functionality around
-# plugin configuration doesn't regress. To test this
-# instantiation method via this file, run (from the
-# root directory of the repository):
+# .. code-block:: bash
 #
-# TODO: STOPPED HERE - FINISH
+#      ~$ pytest tests/isolated/test_factory.py
 # --------------------------------------------------------
 
 from flask import Flask, Blueprint, jsonify
