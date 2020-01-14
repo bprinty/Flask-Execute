@@ -112,6 +112,8 @@ class Celery(object):
             backend=self.app.config['CELERY_RESULT_BACKEND'],
             broker=self.app.config['CELERY_BROKER_URL'],
         )
+        # TODO: only update relevant celery_* config items - the
+        #       rest don't need to be visible in flower
         self.controller.conf.update(self.app.config)
 
         # add custom task wrapping app context
