@@ -8,12 +8,37 @@
 # imports
 # -------
 import os
+import time
 from flask import Flask, Blueprint, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
 from flask_celery import Celery, current_task
 
 from . import SANDBOX
+
+
+# helpers
+# -------
+class timeout(object):
+
+    def __init__(self, seconds):
+        self.seconds = seconds
+
+    def __enter__(self):
+        self.expiration = time.time() + self.seconds
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def tick(self, seconds=1):
+        time.sleep(seconds)
+        return
+
+    @property
+    def expired(self):
+        return time.time() > self.expiration
+
 
 # plugins
 # -------
