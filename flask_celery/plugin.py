@@ -22,7 +22,9 @@ from celery import Celery as CeleryFactory
 from celery.exceptions import TaskRevokedError
 from celery.schedules import crontab
 
-from .cli import cli, entrypoint, CommandManager
+from .cli import cli, entrypoint
+from .futures import Future, FuturePool
+from .managers import CommandManager, TaskManager
 
 
 # config
@@ -64,243 +66,8 @@ def stop_processes(timeout=5):
     global PROCESSES
     for key in PROCESSES:
         PROCESSES[key].terminate()
+        PROCESSES[key].wait()
     return
-
-
-# classes
-# -------
-class Future(object):
-    """
-    Wrapper around celery.AsyncResult to provide an API similar
-    to the ``concurrent.futures`` API.
-    """
-
-    def __init__(self, result):
-        self.__proxy__ = result
-        self.id = self.__proxy__.id
-        return
-
-    def __getattr__(self, key):
-        return getattr(self.__proxy__, key)
-
-    def result(self, timeout=None):
-        self.__proxy__.wait(timeout=timeout)
-        return self.__proxy__.result
-
-    def cancel(self, *args, **kwargs):
-        """
-        Attempt to cancel the call. If the call is currently
-        being executed or finished running and cannot be cancelled
-        then the method will return False, otherwise the call will
-        be cancelled and the method will return True.
-        """
-        if self.__proxy__.state in ['STARTED', 'FAILURE', 'SUCCESS', 'REVOKED']:
-            return False
-        kwargs.setdefault('terminate', True)
-        kwargs.setdefault('wait', True)
-        kwargs.setdefault('timeout', 1 if kwargs['wait'] else None)
-        self.__proxy__.revoke(*args, **kwargs)
-        return True
-
-    def cancelled(self):
-        """
-        Return ``True`` if the call was successfully cancelled.
-        """
-        return self.__proxy__.state == 'REVOKED'
-
-    def running(self):
-        """
-        Return ``True`` if the call is currently being
-        executed and cannot be cancelled.
-        """
-        return self.__proxy__.state in ['STARTED', 'PENDING']
-
-    def done(self):
-        """
-        Return True if the call was successfully cancelled
-        or finished running.
-        """
-        return self.__proxy__.state in ['FAILURE', 'SUCCESS', 'REVOKED']
-
-    def exception(self, timeout=None):
-        """
-        Return the exception raised by the call. If the call hasn’t yet
-        completed then this method will wait up to ``timeout`` seconds. If the
-        call hasn’t completed in ``timeout seconds``. If the call completed
-        without raising, None is returned.
-        """
-        try:
-            self.__proxy__.wait(timeout=timeout)
-        except Exception as exe:
-            return exe
-        return
-
-    def add_done_callback(self, fn):
-        """
-        Attaches the callable fn to the future. fn will be called, with
-        the task as its only argument, when the future is cancelled
-        or finishes running.
-        """
-        self.__proxy__.then(fn)
-        return self
-
-
-class FuturePool(object):
-    """
-    Class for managing pool of futures for grouped operations.
-    """
-
-    def __init__(self, futures):
-        self.futures = futures
-        return
-
-    def __iter__(self):
-        for future in self.futures:
-            yield future
-        return
-
-    def __len__(self):
-        return len(self.futures)
-
-    def add(self, future):
-        """
-        Add future object to pool.
-        """
-        if not isinstance(future, Future):
-            raise AssertionError('No rule for adding {} type to FuturePool.'.format(type(future)))
-        self.futures.append(future)
-        return
-
-    def result(self, timeout=0):
-        """
-        Wait for entire future pool to finish and return result.
-
-        Args:
-            timeout (float): Amount of seconds to wait until timeout.
-        """
-        return [
-            future.result(timeout=timeout)
-            for future in self.futures
-        ]
-
-    def cancel(self, *args, **kwargs):
-        """
-        Cancel all running tasks in future pool. Return value will be
-        ``True`` if *all* tasks were successfully cancelled and ``False``
-        if *any* tasks in the pool were running or done at the time of
-        cancellation.
-        """
-        result = True
-        for future in self.futures:
-            result &= future.cancel(*args, **kwargs)
-        return result
-
-    def running(self):
-        """
-        Return boolean describing if *any* tasks in future pool
-        are still running.
-        """
-        for future in self.futures:
-            if future.running():
-                return True
-        return False
-
-    def done(self):
-        """
-        Return boolean describing if *all* tasks in future pool
-        are either finished or have been revoked.
-        """
-        for future in self.futures:
-            if not future.done():
-                return False
-        return True
-
-    def exception(self):
-        """
-        Return exception(s) thrown by task, if any were
-        thrown during execution.
-        """
-        # TODO
-        return
-
-    def traceback(self):
-        """
-        Return full traceback for tasks that raised exceptions
-        during execution.
-        """
-        # TODO
-        return
-
-
-class TaskManager(object):
-    """
-    Object for managing registered celery tasks, providing
-    users a way of submitting tasks via the celery API when
-    using the factory pattern for configuring a flask application.
-    """
-
-    def __init__(self):
-        self.__app__ = None
-        self.__registered__ = {}
-        self.__tasks__ = {}
-        self.__funcs__ = {}
-        return
-
-    def __call__(self, *args, **kwargs):
-        """
-        Proxy for @celery.task decorator to manage two things:
-
-        1. Registration of celery tasks with the Flask-Celery plugin,
-           so the celery application can be configured using an
-           application factory pattern.
-
-        2. Reistration of celery tasks with an instantiated celery
-           application instance.
-
-        .. TODO: More documentation
-        """
-        # plugin hasn't been initialized
-        if self.__app__ is None:
-            def _(func):
-                self.__registered__[func.__name__] = {'func': func, 'args': args, 'kwargs': kwargs}
-                return func
-
-        # plugin has been initialized
-        else:
-            def _(func):
-                func = self.__app__.task(*args, **kwargs)(func)
-                if func.name not in self.__tasks__:
-                    self.__tasks__[func.name] = func
-                    self.__funcs__[func.__name__] = func
-                return func
-
-        # return decorated function if called directly
-        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
-            func, args = args[0], args[1:]
-            return _(func)
-
-        # return inner decorator
-        else:
-            return _
-
-    def init_celery(self, controller):
-        self.__app__ = controller
-        for key, item in self.__registered__.items():
-            if not len(item['args']) and not len(item['kwargs']):
-                self(item['func'])
-            else:
-                self(*item['args'], **item['kwargs'])(item['func'])
-        return
-
-    def __getattr__(self, key):
-        if key not in self.__tasks__:
-            if key not in self.__funcs__:
-                raise AttributeError('Task {} has not been registered'.format(key))
-            return self.__funcs__[key]
-        return self.__tasks__[key]
-
-    def __getitem__(self, key):
-        return self.__getattr__(key)
 
 
 # plugin
@@ -440,6 +207,22 @@ class Celery(object):
 
             # start worker
             self.processes[worker] = cli.popen(cmd)
+
+        # start flower (if specified)
+        if self.app.config['CELERY_FLOWER']:
+
+            # set up flower logs
+            self.logs.append(os.path.join(current_app.config['CELERY_LOG_DIR'], 'flower.log'))
+
+            # run flower and monitor
+            self.processes['flower'] = cli.popen(
+                'flower --address={} --port={} --logging={} --log-file-prefix={}'.format(
+                    current_app.config['CELERY_FLOWER_ADDRESS'],
+                    current_app.config['CELERY_FLOWER_PORT'],
+                    current_app.config['CELERY_LOG_LEVEL'],
+                    os.path.join(current_app.config['CELERY_LOG_DIR'], 'flower.log')
+                )
+            )
 
         # wait for workers to start
         then, delta = datetime.now(), 0
