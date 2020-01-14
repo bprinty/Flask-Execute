@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # All manager objects for complex operations provided
 # by plugin properties.
@@ -10,6 +9,7 @@
 # -------
 import json
 import subprocess
+from celery.schedules import crontab
 
 from .cli import cli
 
@@ -21,6 +21,19 @@ class TaskManager(object):
     Object for managing registered celery tasks, providing
     users a way of submitting tasks via the celery API when
     using the factory pattern for configuring a flask application.
+
+    This proxy for the @celery.task decorator is designed to
+    manage two things:
+
+    1. For applications set up with the flask application directly,
+       register tasks with the celery application directly. This
+       has the same effect as the original mechanism for configuring
+       celery alongside a Flask application.
+
+    2. For applications set up using the factory pattern,
+       store all registered tasks internally so they can be
+       registered with the celery application once the plugin
+       as been initialized with a flask application instance.
     """
 
     def __init__(self):
@@ -32,16 +45,7 @@ class TaskManager(object):
 
     def __call__(self, *args, **kwargs):
         """
-        Proxy for @celery.task decorator to manage two things:
-
-        1. Registration of celery tasks with the Flask-Celery plugin,
-           so the celery application can be configured using an
-           application factory pattern.
-
-        2. Reistration of celery tasks with an instantiated celery
-           application instance.
-
-        .. TODO: More documentation
+        Internal decorator logic for ``celery.task``.
         """
         # plugin hasn't been initialized
         if self.__app__ is None:
@@ -67,7 +71,26 @@ class TaskManager(object):
         else:
             return _
 
+    def __getattr__(self, key):
+        if key not in self.__tasks__:
+            if key not in self.__funcs__:
+                raise AttributeError('Task {} has not been registered'.format(key))
+            return self.__funcs__[key]
+        return self.__tasks__[key]
+
+    def __getitem__(self, key):
+        return self.__getattr__(key)
+
     def init_celery(self, controller):
+        """
+        Initialize the task manager with a celery controller. This
+        will register all decorated tasks with the specified
+        ``controller`` (celery application).
+
+        Args:
+            controller (Celery): Celery application instance to
+                register tasks for.
+        """
         self.__app__ = controller
         for key, item in self.__registered__.items():
             if not len(item['args']) and not len(item['kwargs']):
@@ -75,6 +98,92 @@ class TaskManager(object):
             else:
                 self(*item['args'], **item['kwargs'])(item['func'])
         return
+
+
+class ScheduleManager(object):
+    """
+    Object for managing scheduled celery tasks, providing
+    users a way of scheduling tasks via the celery API when
+    using the factory pattern for configuring a flask application.
+
+    This proxy for the @celery.task decorator is designed to
+    manage two things:
+
+    1. For applications set up with the flask application directly,
+       schedule tasks with the celery application directly. This
+       has the same effect as the original mechanism for configuring
+       celery alongside a Flask application.
+
+    2. For applications set up using the factory pattern,
+       store all scheduled tasks internally so they can be
+       registered with the celery application once the plugin
+       as been initialized with a flask application instance.
+    """
+
+    def __init__(self):
+        self.__app__ = None
+        self.__registered__ = {}
+        return
+
+    def schedule(self, schedule=None, name=None, args=tuple(), kwargs=dict(), options=dict(), **skwargs):
+        """
+        Schedule task to run according to specified CRON schedule.
+        """
+
+
+    def __call__(self, schedule=None, name=None, args=tuple(), kwargs=dict(), options=dict(), **skwargs):
+        """
+        Internal decorator logic for ``celery.schedule``.
+        """
+        # process args
+        if schedule is not None and len(skwargs):
+            raise AssertionError(
+                'Invalid schedule arguments - please see documentation for '
+                'how to use @celery.schedule'
+            )
+            if schedule is None and len(skwargs):
+                schedule = crontab(**skwargs)
+
+        # plugin hasn't been initialized
+        if self.__app__ is None:
+            def _(func):
+                if name is None:
+                    name = func.__name__
+                self.__registered__[name] = {
+                    'task': func,
+                    'schedule': schedule,
+                    'args': args,
+                    'kwargs': kwargs,
+                    'options': options
+                }
+                return func
+
+        # plugin has been initialized
+        else:
+            def _(func):
+                func = self.__app__.task(func)
+
+                # @app.on_after_configure.connect
+                # def setup_periodic_tasks(sender, **kwargs):
+                #     # Calls test('hello') every 10 seconds.
+                #     sender.add_periodic_task(10.0, test.s('hello'), name='add every 10')
+                #
+                #     # Calls test('world') every 30 seconds
+                #     sender.add_periodic_task(30.0, test.s('world'), expires=10)
+                #
+                #     # Executes every Monday morning at 7:30 a.m.
+                #     sender.add_periodic_task(
+                #         crontab(hour=7, minute=30, day_of_week=1),
+                #         test.s('Happy Mondays!'),
+                #     )
+
+                if func.name not in self.__tasks__:
+                    self.__tasks__[func.name] = func
+                    self.__funcs__[func.__name__] = func
+                return func
+
+        # return inner decorator
+        return _
 
     def __getattr__(self, key):
         if key not in self.__tasks__:
@@ -86,8 +195,65 @@ class TaskManager(object):
     def __getitem__(self, key):
         return self.__getattr__(key)
 
+    def init_celery(self, controller):
+        """
+        Initialize the task manager with a celery controller. This
+        will register all decorated tasks with the specified
+        ``controller`` (celery application).
+
+        Args:
+            controller (Celery): Celery application instance to
+                register tasks for.
+        """
+        self.__app__ = controller
+        for key, item in self.__registered__.items():
+            if not len(item['args']) and not len(item['kwargs']):
+                self(item['func'])
+            else:
+                self(*item['args'], **item['kwargs'])(item['func'])
+        return
+
 
 class CommandManager(object):
+    """
+    Manager for issuing celery ``inspect`` or ``control`` calls
+    to the celery API.
+
+    Example:
+
+        .. code-block:: python
+
+            >>> inspect = CommandManager('inspect')
+
+            # no options
+            >>> inspect.active()
+
+            # options
+            >>> inspect.active(timeout=5, destination=['w1@e.com', 'w2@e.com'])
+
+    This tool is primarily used alongside the ``Celery`` plugin
+    object, allowing developers to issue celery commands via
+    property.
+
+    Examples:
+
+        .. code-block:: python
+
+            >>> celery = Celery(app)
+
+            # ``inspect`` command manager.
+            >>> celery.inspect.ping()
+            {'worker@localhost': {'ok': 'pong'}}
+
+            # ``control`` command manager.
+            >>> celery.control.pool_shrink(1)
+            {'worker@localhost': {'ok': 'pool will shrink'}}
+            >>> celery.control.shutdown()
+            Shutdown signal sent to workers.
+
+    Use ``celery.inspect.help()`` and ``celery.control.help()`` to see
+    available celery commands.
+    """
 
     def __init__(self, name):
         self.name = name
@@ -98,29 +264,25 @@ class CommandManager(object):
             return self.call(self.name + ' ' + key, *args, **kwargs)
         return _
 
+    def __getitem__(self, key):
+        return self.__getattr__(key)
+
+    def help(self):
+        """
+        Return help message for specific command.
+        """
+        output = cli.output(self.name + ' --help', stderr=None)
+        print('\n>>> celery.' + self.name + '.command()\n')
+        print('Issue celery command to {} workers.\n'.format(self.name))
+        print('Commands:')
+        for line in output.split('\n'):
+            if line and line[0] == '|':
+                print(line)
+        return
+
     def call(self, cmd, timeout=None, destination=None, quiet=False):
         """
-        Call celery subcommand and return output.
-
-        Example:
-
-            >>> inspect = CommandManager('inspect')
-
-            # no options
-            >>> inspect.active()
-
-            # options
-            >>> inspect.active(timeout=5, destination=['w1@e.com', 'w2@e.com'])
-
-        This tool is primarily used alongside the ``Celery`` plugin
-        object, allowing developers to issue celery commands via
-        property.
-
-        Example:
-
-            >>> celery = Celery(app)
-            >>> celery.inspect.active()
-            >>> celery.control.shutdown()
+        Issue celery subcommand and return output.
 
         Args:
             cmd (str): Command to call.
@@ -144,7 +306,10 @@ class CommandManager(object):
             output = cli.output(cmd)
         except subprocess.CalledProcessError as err:
             if not quiet:
-                print(err.stdout.decode('utf-8'))
+                if 'shutdown' in cmd:
+                    print('Shutdown signal sent to workers.')
+                else:
+                    print(err.stdout.decode('utf-8'))
             return
 
         # make call and parse result
