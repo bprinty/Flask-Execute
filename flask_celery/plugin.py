@@ -141,7 +141,7 @@ class Celery(object):
 
         self.controller.Task = ContextTask
 
-        # link celery  extension to registered application
+        # link celery extension to registered application
         if not hasattr(self.app, 'extensions'):
             self.app.extensions = {}
         self.app.extensions['celery'] = self
