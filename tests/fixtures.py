@@ -103,6 +103,11 @@ def task():
     return True
 
 
+# @celery.schedule(hour=0, minute=0)
+# def scheduled():
+#     return True
+
+
 # endpoints
 # ---------
 @api.route('/submit', methods=['POST'])
