@@ -103,9 +103,9 @@ def task():
     return True
 
 
-# @celery.schedule(hour=0, minute=0)
-# def scheduled():
-#     return True
+@celery.schedule(5, name='scheduled-fixture')
+def scheduled():
+    return True
 
 
 # endpoints
