@@ -68,7 +68,7 @@ class TestPlugin:
         return
 
     def test_scheduled(self, celery):
-        data = celery.inspect.registered()
+        data = celery.inspect.scheduled()
         worker = list(data.keys())[0]
         assert 'tests.fixtures.scheduled' in data[worker]
         return
