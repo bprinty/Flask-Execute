@@ -17,6 +17,37 @@ from .fixtures import db, Item
 
 # tests
 # -----
+class TestRegistrationManager:
+
+    def test_task(self, celery):
+        # check if task is registered
+        data = celery.inspect.registered()
+        worker = list(data.keys())[0]
+        assert 'tests.fixtures.task' in data[worker]
+
+        # run registered task
+        assert celery.task.task()
+
+        # run registered task with celery api
+        task = celery.task.task.delay()
+        task.wait()
+        assert task.result
+        return
+
+    def test_schedule(self, celery):
+        data = celery.inspect.scheduled()
+        worker = list(data.keys())[0]
+        assert 'tests.fixtures.scheduled' in data[worker]
+
+        # run scheduled task
+        assert celery.schedule.scheduled()
+
+        # run registered task with celery api
+        task = celery.task.scheduled.delay()
+        task.wait()
+        assert task.result
+        return
+
 class TestCommandManagers:
 
     def test_inspect(self, celery):
