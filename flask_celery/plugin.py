@@ -106,6 +106,7 @@ class Celery(object):
         self.app.config.setdefault('CELERY_FLOWER', True)
         self.app.config.setdefault('CELERY_FLOWER_PORT', 5555)
         self.app.config.setdefault('CELERY_FLOWER_ADDRESS', '127.0.0.1')
+        self.app.config.setdefault('CELERYBEAT_SCHEDULE', {})
 
         # set up controller
         self.controller = CeleryFactory(
@@ -150,6 +151,9 @@ class Celery(object):
         # register dynamic task
         self.wrapper = self.controller.task(dispatch)
         self.task.init_celery(self.controller)
+        self.schedule.init_celery(self.controller)
+
+        print(self.controller.conf['CELERYBEAT_SCHEDULE'])
 
         # register cli entry points
         self.app.cli.add_command(entrypoint)
@@ -169,6 +173,8 @@ class Celery(object):
         """
         timeout = timeout or self.app.config['CELERY_START_TIMEOUT']
         running = self.status()
+
+        # TODO: START CELERYBEAT, ADD OPTION FOR CELERYBEAT LOGS
 
         # reformat worker specification
         if isinstance(self.app.config['CELERY_WORKERS'], int):
