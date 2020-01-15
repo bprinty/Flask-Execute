@@ -24,7 +24,7 @@ from celery.schedules import crontab
 
 from .cli import cli, entrypoint
 from .futures import Future, FuturePool
-from .managers import CommandManager, TaskManager
+from .managers import CommandManager, TaskManager, ScheduleManager
 
 
 # config
@@ -81,6 +81,7 @@ class Celery(object):
         self._started = False
         self.logs = []
         self.task = TaskManager()
+        self.schedule = ScheduleManager()
         self.inspect = CommandManager('inspect')
         self.control = CommandManager('control')
         if app is not None:
@@ -244,22 +245,6 @@ class Celery(object):
         Stop all processes started by this plugin.
         """
         return stop_processes(timeout=5)
-
-    def schedule(self, func, *args, **kwargs): # schedule, args=tuple(), kwargs=dict(), name=None, **kwargs):
-        """
-        Schedule task to run according to specified CRON schedule.
-        """
-        # sargs = kwargs.pop('args', ())
-        # skwargs = kwargs.pop('kwargs', {})
-        # if not len(args):
-        #     cargs = {}
-        #     for param in []:
-        #     args = [crontab(**kwargs)]
-        def decorator(func):
-            def _(*args, **kwargs):
-                return func(*args, **kwargs)
-            return _
-        return decorator
 
     def submit(self, func, *args, **kwargs):
         """
