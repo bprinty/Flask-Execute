@@ -27,7 +27,7 @@ info: ## list info about package
 
 
 clean: ## remove build and test artifacts
-	rm -fr build dist .eggs .pytest_cache docs/_build .coverage* *.log
+	rm -fr build dist .eggs .pytest_cache docs/_build .coverage* *.log celerybeat*
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
 	find . -name '*.py[co]' -exec rm -f {} +
