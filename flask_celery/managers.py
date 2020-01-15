@@ -131,38 +131,46 @@ class ScheduleManager(object):
         """
         Internal decorator logic for ``celery.schedule``.
         """
-        # process args
+        # handle ambiguous schedule input
         if schedule is not None and len(skwargs):
             raise AssertionError(
                 'Invalid schedule arguments - please see documentation for '
                 'how to use @celery.schedule'
             )
-            if schedule is None and len(skwargs):
-                schedule = crontab(**skwargs)
+
+        # handle crontab input
+        if schedule is None and len(skwargs):
+            schedule = crontab(**skwargs)
+
+        # handle missing schedule input
+        if schedule is None:
+            raise AssertionError('Schedule for periodic task must be defined, either via numeric arguments or crontab keywords. See documentation for details.')
 
         # plugin hasn't been initialized
         if self.__app__ is None:
             def _(func):
-                name = name or func.__module__ + '.' + func.__name__
-                self.__registered__[name] = {
+                key = name or func.__module__ + '.' + func.__name__
+                self.__registered__[key] = {
                     'func': func,
                     'schedule': schedule,
                     'args': args,
                     'kwargs': kwargs,
-                    'options': options
+                    'options': options,
                 }
                 return func
 
         # plugin has been initialized
         else:
             def _(func):
-                func = self.__app__.task(name=name)(func)
-
-                @self.__app__.on_after_configure.connect
-                def add_scheduled_task(sender, **kwargs):
-                    options['name'] = func.name
-                    sender.add_periodic_task(schedule, func.s(*args, **kwargs), **options)
-                    return
+                if not hasattr(func, 'name'):
+                    func = self.__app__.task(func)
+                self.__app__.conf['CELERYBEAT_SCHEDULE'][name] = {
+                    'task': func.name,
+                    'schedule': schedule,
+                    'args': args,
+                    'kwargs': kwargs,
+                    'options': options
+                }
 
                 if func.name not in self.__tasks__:
                     self.__tasks__[func.name] = func
@@ -194,9 +202,15 @@ class ScheduleManager(object):
                 register tasks for.
         """
         self.__app__ = controller
+        print(self.__registered__)
         for key, item in self.__registered__.items():
-            func = item.pop('func')
-            self(**item)(func)
+            self(
+                schedule=item['schedule'],
+                args=item['args'],
+                kwargs=item['kwargs'],
+                options=item['options'],
+                name=key,
+            )(item['func'])
         return
 
 
