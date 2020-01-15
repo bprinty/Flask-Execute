@@ -123,13 +123,9 @@ class ScheduleManager(object):
     def __init__(self):
         self.__app__ = None
         self.__registered__ = {}
+        self.__tasks__ = {}
+        self.__funcs__ = {}
         return
-
-    def schedule(self, schedule=None, name=None, args=tuple(), kwargs=dict(), options=dict(), **skwargs):
-        """
-        Schedule task to run according to specified CRON schedule.
-        """
-
 
     def __call__(self, schedule=None, name=None, args=tuple(), kwargs=dict(), options=dict(), **skwargs):
         """
@@ -147,10 +143,9 @@ class ScheduleManager(object):
         # plugin hasn't been initialized
         if self.__app__ is None:
             def _(func):
-                if name is None:
-                    name = func.__name__
+                name = name or func.__module__ + '.' + func.__name__
                 self.__registered__[name] = {
-                    'task': func,
+                    'func': func,
                     'schedule': schedule,
                     'args': args,
                     'kwargs': kwargs,
@@ -161,25 +156,18 @@ class ScheduleManager(object):
         # plugin has been initialized
         else:
             def _(func):
-                func = self.__app__.task(func)
+                func = self.__app__.task(name=name)(func)
 
-                # @app.on_after_configure.connect
-                # def setup_periodic_tasks(sender, **kwargs):
-                #     # Calls test('hello') every 10 seconds.
-                #     sender.add_periodic_task(10.0, test.s('hello'), name='add every 10')
-                #
-                #     # Calls test('world') every 30 seconds
-                #     sender.add_periodic_task(30.0, test.s('world'), expires=10)
-                #
-                #     # Executes every Monday morning at 7:30 a.m.
-                #     sender.add_periodic_task(
-                #         crontab(hour=7, minute=30, day_of_week=1),
-                #         test.s('Happy Mondays!'),
-                #     )
+                @self.__app__.on_after_configure.connect
+                def add_scheduled_task(sender, **kwargs):
+                    options['name'] = func.name
+                    sender.add_periodic_task(schedule, func.s(*args, **kwargs), **options)
+                    return
 
                 if func.name not in self.__tasks__:
                     self.__tasks__[func.name] = func
                     self.__funcs__[func.__name__] = func
+
                 return func
 
         # return inner decorator
@@ -207,10 +195,8 @@ class ScheduleManager(object):
         """
         self.__app__ = controller
         for key, item in self.__registered__.items():
-            if not len(item['args']) and not len(item['kwargs']):
-                self(item['func'])
-            else:
-                self(*item['args'], **item['kwargs'])(item['func'])
+            func = item.pop('func')
+            self(**item)(func)
         return
 
 
