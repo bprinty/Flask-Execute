@@ -17,7 +17,7 @@ from .fixtures import db, Item
 
 # tests
 # -----
-class TestBase:
+class TestPlugin:
 
     def test_submit(self, celery):
         future = celery.submit(add, 1, 2)
@@ -59,6 +59,18 @@ class TestBase:
         result = future.result(timeout=1)
         assert isinstance(future, Future)
         assert result == 3
+        return
+
+    def test_registered(self, celery):
+        data = celery.inspect.registered()
+        worker = list(data.keys())[0]
+        assert 'tests.fixtures.task' in data[worker]
+        return
+
+    def test_scheduled(self, celery):
+        data = celery.inspect.registered()
+        worker = list(data.keys())[0]
+        assert 'tests.fixtures.scheduled' in data[worker]
         return
 
 
