@@ -55,6 +55,16 @@ Once the plugin has been registered, you can submit a task using:
     # wait for result (not required)
     future.result(timeout=1)
 
+    # cancel result
+    future.cancel()
+
+    # add callback function
+    def callback():
+      # do something ...
+      return
+
+    future.add_done_callback(callback)
+
 
 Note that this plugin does not require users to pre-register tasks via the ``@celery.task`` decorator. This enables developers to more easily control whether or not task execution happens within the current session or on a separate worker. It also makes the API similar to the API provided by `Dask <https://docs.dask.org/en/latest/>`_ and `concurrent.futures <https://docs.python.org/3/library/concurrent.futures.html>`_. Also note that the ``celery`` command-line tool for spinning up local workers is no longer necessary. If no workers are connected, this plugin will automatically spin them up the first time a ``celery.submit()`` call is made.
 
@@ -68,5 +78,45 @@ Once a task as been submitted, you can monitor the state via:
 
     future = celery.get(task_id)
     print(future.state)
+
+
+You can also manage state updates within tasks with a more Flask-y syntax:
+
+.. code-block:: python
+
+  from flask_celery import current_task
+
+  def add(a, b):
+    current_task.update_state(state='PROGRESS')
+    return a + b
+
+
+This plugin will also manage the process of spinning up local workers bound to your application the first time a ``celery.submit()`` call is made (if configured to do so). Additionally, the plugin will automatically wrap ``celery`` cli calls with your flask application (using the factory method or not), so you can more easily interact with celery:
+
+.. code-block:: bash
+
+    # start local celery cluster with workers, flower monitor, and celerybeat scheduler
+    ~$ flask celery cluster
+
+    # start local worker
+    ~$ flask celery worker
+
+    # check status of running workers
+    ~$ flask celery status
+
+    # shutdown all celery workers
+    ~$ flask celery control shutdown
+
+    # shutdown all celery workers
+    ~$ flask celery control shutdown
+
+
+If your application uses the factory pattern with a ``create_app`` function for registering blueprints and plugin, you can use the standard ``flask cli`` syntax for automatically wrapping ``celery`` commands with your application context:
+
+.. code-block:: bash
+
+    # check status of running workers
+    ~$ FLASK_APP=app:create_app flask celery status
+
 
 For more in-depth discussion on design considerations and how to fully utilize the plugin, see the `User Guide <./usage.html>`_.
