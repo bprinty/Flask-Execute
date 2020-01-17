@@ -9,9 +9,7 @@
 # -------
 import pytest
 
-from flask_celery.plugin import Future, FuturePool
-
-from .fixtures import add, sleep, fail, task_id, task
+from .fixtures import add, sleep, fail
 from .fixtures import db, Item
 
 

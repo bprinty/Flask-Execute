@@ -7,46 +7,44 @@
 
 # imports
 # -------
-import pytest
-
-from flask_celery.plugin import Future, FuturePool
-
-from .fixtures import add, sleep, fail, task_id, task
-from .fixtures import db, Item
+from .fixtures import add, sleep
 
 
 # tests
 # -----
-class TestRegistrationManager:
+class TestTaskManagers:
 
     def test_task(self, celery):
         # check if task is registered
         data = celery.inspect.registered()
         worker = list(data.keys())[0]
-        assert 'tests.fixtures.task' in data[worker]
+        assert 'tests.fixtures.registered' in data[worker]
 
         # run registered task
-        assert celery.task.task()
+        assert celery.task.registered()
 
         # run registered task with celery api
-        task = celery.task.task.delay()
+        task = celery.task.registered.delay()
         task.wait()
         assert task.result
         return
 
     def test_schedule(self, celery):
-        data = celery.inspect.scheduled()
-        worker = list(data.keys())[0]
-        assert 'tests.fixtures.scheduled' in data[worker]
+        # assert configuration
+        assert 'scheduled-task' in celery.controller.conf['CELERYBEAT_SCHEDULE']
+        schedule = celery.controller.conf['CELERYBEAT_SCHEDULE']['scheduled-task']
+        assert schedule['task'] == 'tests.fixtures.scheduled'
+        assert 'crontab' in str(type(schedule['schedule']))
 
         # run scheduled task
         assert celery.schedule.scheduled()
 
         # run registered task with celery api
-        task = celery.task.scheduled.delay()
+        task = celery.schedule.scheduled.delay()
         task.wait()
         assert task.result
         return
+
 
 class TestCommandManagers:
 
