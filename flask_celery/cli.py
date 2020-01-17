@@ -7,11 +7,10 @@
 
 # imports
 # -------
+import re
 import os
 import sys
-import json
 import click
-import atexit
 import subprocess
 from flask import current_app
 from flask.cli import with_appcontext
@@ -109,7 +108,10 @@ def entrypoint(help, args):
 
     # dispatch additional entry point
     if 'cluster' in args:
-        # TODO: print out help args if -h
+        if help:
+            message = re.sub('\n\s+', '\n', cluster.__doc__)
+            sys.stderr.write('\nUsage: celery cluster [options]\n{}\n'.format(message))
+            sys.exit(1)
         return cluster(args)
 
     # call command with arguments
@@ -119,15 +121,10 @@ def entrypoint(help, args):
 
 def cluster(args):
     """
-    Start local cluster of celery workers and flower
-    monitoring tool (if specified).
-
-    This is an internal function used alongside the proxy
-    for issuing celery commands. It shouldn't be directly
-    used by developers outside this plugin.
-
-    Args:
-        args (list): celery command arguments.
+    Start local cluster of celery workers, celerybeat monitor,
+    and flower monitoring tool (if specified in configuration).
+    See documentation for information on configuring Flower
+    and the Celerybeat scheduler.
     """
     celery = current_app.extensions['celery']
 
