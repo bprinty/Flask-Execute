@@ -7,12 +7,11 @@
 
 # imports
 # -------
-import pytest
+import os
 
 from flask_celery.plugin import Future, FuturePool
 
-from .fixtures import add, sleep, fail, task_id, task
-from .fixtures import db, Item
+from .fixtures import add, task_id
 
 
 # tests
@@ -61,16 +60,10 @@ class TestPlugin:
         assert result == 3
         return
 
-    def test_registered(self, celery):
-        data = celery.inspect.registered()
-        worker = list(data.keys())[0]
-        assert 'tests.fixtures.task' in data[worker]
-        return
-
-    def test_scheduled(self, celery):
-        data = celery.inspect.scheduled()
-        worker = list(data.keys())[0]
-        assert 'tests.fixtures.scheduled' in data[worker]
+    def test_logs(self, celery):
+        for logfile in celery.logs:
+            assert os.path.exists(logfile)
+            assert os.stat(logfile).st_size != 0
         return
 
 
