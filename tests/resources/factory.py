@@ -12,12 +12,15 @@
 from flask import Flask, Blueprint, jsonify
 from flask_celery import Celery
 from celery.schedules import crontab
+from .. import SANDBOX
 
 celery = Celery()
 url = Blueprint('url', __name__)
 
 def create_app():
     app = Flask(__name__)
+    app.config['CELERY_LOG_DIR'] = SANDBOX
+    app.config['CELERYD_CONCURRENCY'] = 4
     app.register_blueprint(url)
     celery.init_app(app)
     return app

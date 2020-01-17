@@ -21,7 +21,10 @@ from ..fixtures import timeout
 @pytest.fixture(scope='session')
 def app(sandbox):
     # start application
-    proc = subprocess.Popen('FLASK_ENV=development FLASK_APP=tests.resources.factory flask run --host=127.0.0.1 --port=5000', stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True)
+    proc = subprocess.Popen(
+        'FLASK_ENV=development FLASK_APP=tests.resources.factory '
+        'flask run --host=127.0.0.1 --port=5000',
+        stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True)
 
     # wait for server to start
     with timeout(10) as to:
@@ -46,17 +49,12 @@ def app(sandbox):
 # -----
 def test_pattern(app):
     # ping
-    import time
-    time.sleep(3)
     response = requests.get('http://127.0.0.1:5000/ping')
     assert response.json() == {'msg': 'pong'}
 
     # task
     response = requests.get('http://127.0.0.1:5000/task')
     assert response.json() == {'success': True}
-
-    # use flower to check sheduled tasks
-    # TODO: THIS
 
     # wait for flower availability
     with timeout(10) as to:

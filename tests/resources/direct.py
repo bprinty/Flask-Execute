@@ -12,8 +12,11 @@
 from flask import Flask, jsonify
 from flask_celery import Celery
 from celery.schedules import crontab
+from .. import SANDBOX
 
 app = Flask(__name__)
+app.config['CELERY_LOG_DIR'] = SANDBOX
+app.config['CELERYD_CONCURRENCY'] = 4
 celery = Celery(app)
 
 def ping():

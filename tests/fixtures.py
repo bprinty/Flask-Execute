@@ -99,11 +99,12 @@ def task_id():
 
 
 @celery.task
-def task():
+def registered():
     return True
 
 
-@celery.schedule(5, name='scheduled-fixture')
+@celery.schedule(hour=0, minute=0, name='scheduled-task')
+# @celery.schedule(5, name='scheduled-task')
 def scheduled():
     return True
 
