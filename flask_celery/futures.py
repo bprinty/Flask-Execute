@@ -17,6 +17,10 @@ class Future(object):
     """
     Wrapper around celery.AsyncResult to provide an API similar
     to the ``concurrent.futures`` API.
+
+    Arguments:
+        result (AsyncResult): ``celery.result.AsyncResult`` object
+            containing task information and celery context.
     """
 
     def __init__(self, result):
@@ -28,6 +32,14 @@ class Future(object):
         return getattr(self.__proxy__, key)
 
     def result(self, timeout=None):
+        """
+        Wait for task to finish and return result.
+
+        Arguments:
+            timeout (int): Number of seconds to wait for
+                result to finish before timing out and raising
+                an error.
+        """
         self.__proxy__.wait(timeout=timeout)
         return self.__proxy__.result
 
@@ -37,6 +49,9 @@ class Future(object):
         being executed or finished running and cannot be cancelled
         then the method will return False, otherwise the call will
         be cancelled and the method will return True.
+
+        Arguments and keyword arguments passed to this function will
+        be passed into the internal AsyncResult.revoke() method.
         """
         if self.__proxy__.state in ['STARTED', 'FAILURE', 'SUCCESS', 'REVOKED']:
             return False
@@ -70,8 +85,13 @@ class Future(object):
         """
         Return the exception raised by the call. If the call hasn’t yet
         completed then this method will wait up to ``timeout`` seconds. If the
-        call hasn’t completed in ``timeout seconds``. If the call completed
+        call hasn’t completed in ``timeout`` seconds. If the call completed
         without raising, None is returned.
+
+        Arguments:
+            timeout (int): Number of seconds to wait for
+                result to finish before timing out and raising
+                an error.
         """
         try:
             self.__proxy__.wait(timeout=timeout)
@@ -84,6 +104,10 @@ class Future(object):
         Attaches the callable fn to the future. fn will be called, with
         the task as its only argument, when the future is cancelled
         or finishes running.
+
+        Arguments:
+            fn (callable): Callable object to issue after task has
+                finished executing.
         """
         self.__proxy__.then(fn)
         return self
@@ -92,6 +116,10 @@ class Future(object):
 class FuturePool(object):
     """
     Class for managing pool of futures for grouped operations.
+
+    Arguments:
+        futures (list, tuple): Iterable of ``celery.result.AsyncResult``
+            objects to manage as a group of tasks.
     """
 
     def __init__(self, futures):
@@ -131,6 +159,9 @@ class FuturePool(object):
     def add(self, future):
         """
         Add future object to pool.
+
+        Arguments:
+            future (Future): Future object to add to pool.
         """
         if not isinstance(future, Future):
             raise AssertionError('No rule for adding {} type to FuturePool.'.format(type(future)))
@@ -141,8 +172,10 @@ class FuturePool(object):
         """
         Wait for entire future pool to finish and return result.
 
-        Args:
-            timeout (float): Amount of seconds to wait until timeout.
+        Arguments:
+            timeout (int): Number of seconds to wait for
+                result to finish before timing out and raising
+                an error.
         """
         return [
             future.result(timeout=timeout)
@@ -155,6 +188,9 @@ class FuturePool(object):
         ``True`` if *all* tasks were successfully cancelled and ``False``
         if *any* tasks in the pool were running or done at the time of
         cancellation.
+
+        Arguments and keyword arguments passed to this function will
+        be passed into the internal AsyncResult.revoke() method.
         """
         result = True
         for future in self.futures:
@@ -205,6 +241,10 @@ class FuturePool(object):
         Attaches the callable fn to the future pool. fn will be
         called, with the task as its only argument, when the
         future is cancelled or finishes running.
+
+        Arguments:
+            fn (callable): Callable object to issue after task has
+                finished executing.
         """
         self.__proxy__.then(fn)
         return self

@@ -7,6 +7,7 @@
 
 # imports
 # -------
+import sys
 import json
 import subprocess
 from celery.schedules import crontab
@@ -74,7 +75,7 @@ class TaskManager(object):
     def __getattr__(self, key):
         if key not in self.__tasks__:
             if key not in self.__funcs__:
-                raise AttributeError('Task {} has not been registered'.format(key))
+                raise AttributeError('Task ``{}`` has not been registered'.format(key))
             return self.__funcs__[key]
         return self.__tasks__[key]
 
@@ -164,6 +165,8 @@ class ScheduleManager(object):
             def _(func):
                 if not hasattr(func, 'name'):
                     func = self.__app__.task(func)
+
+                # add schedule to beat manager
                 self.__app__.conf['CELERYBEAT_SCHEDULE'][name] = {
                     'task': func.name,
                     'schedule': schedule,
@@ -172,6 +175,7 @@ class ScheduleManager(object):
                     'options': options
                 }
 
+                # save in scheduled registry
                 if func.name not in self.__tasks__:
                     self.__tasks__[func.name] = func
                     self.__funcs__[func.__name__] = func
@@ -202,7 +206,6 @@ class ScheduleManager(object):
                 register tasks for.
         """
         self.__app__ = controller
-        print(self.__registered__)
         for key, item in self.__registered__.items():
             self(
                 schedule=item['schedule'],
@@ -272,12 +275,12 @@ class CommandManager(object):
         Return help message for specific command.
         """
         output = cli.output(self.name + ' --help', stderr=None)
-        print('\n>>> celery.' + self.name + '.command()\n')
-        print('Issue celery command to {} workers.\n'.format(self.name))
-        print('Commands:')
+        sys.stderr.write('\n>>> celery.' + self.name + '.command()\n\n')
+        sys.stderr.write('Issue celery command to {} workers.\n\n'.format(self.name))
+        sys.stderr.write('Commands:')
         for line in output.split('\n'):
             if line and line[0] == '|':
-                print(line)
+                sys.stderr.write(line + '\n')
         return
 
     def call(self, cmd, timeout=None, destination=None, quiet=False):
