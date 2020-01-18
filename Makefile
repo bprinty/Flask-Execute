@@ -7,8 +7,8 @@
 # config
 # ------
 PYTHON     = python3
-PROJECT    = `$(PYTHON) -c 'print(__import__("lib").__pkg__)'`
-VERSION    = `$(PYTHON) -c 'print(__import__("lib").__version__)'`
+PROJECT    = `$(PYTHON) -c 'print(__import__("flask_execute").__pkg__)'`
+VERSION    = `$(PYTHON) -c 'print(__import__("flask_execute").__version__)'`
 
 
 # targets
