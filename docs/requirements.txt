@@ -1,2 +1,3 @@
 Flask
 Flask-Sphinx-Themes>=1.0.2
+celery
