@@ -1,6 +1,6 @@
-============
-Flask-Celery
-============
+=================
+Flask-CeleryStick
+=================
 
 
 .. include:: overview.rst
