@@ -28,7 +28,7 @@ To set up an application with the extension, you can register the application di
 .. code-block:: python
 
     from flask import Flask
-    from flask_celery import Celery
+    from flask_execute import Celery
 
     app = Flask(__name__)
     plugin = Celery(app)
@@ -84,7 +84,7 @@ You can also manage state updates within tasks with a more Flask-y syntax:
 
 .. code-block:: python
 
-  from flask_celery import current_task
+  from flask_execute import current_task
 
   def add(a, b):
     current_task.update_state(state='PROGRESS')
