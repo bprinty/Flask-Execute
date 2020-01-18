@@ -1,22 +1,21 @@
 
-.. Uncomment below for banners
 
-.. |Build status| |Code coverage| |Maintenance yes| |GitHub license| |Documentation Status|
+|Build status| |Code coverage| |Maintenance yes| |GitHub license| |Documentation Status|
 
-.. .. |Build status| image:: https://travis-ci.com/bprinty/Flask-Execute.png?branch=master
-..    :target: https://travis-ci.com/bprinty/Flask-Execute
+.. |Build status| image:: https://travis-ci.com/bprinty/Flask-Execute.png?branch=master
+   :target: https://travis-ci.com/bprinty/Flask-Execute
 
-.. .. |Code coverage| image:: https://codecov.io/gh/bprinty/Flask-Execute/branch/master/graph/badge.svg
-..    :target: https://codecov.io/gh/bprinty/Flask-Execute
+.. |Code coverage| image:: https://codecov.io/gh/bprinty/Flask-Execute/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/bprinty/Flask-Execute
 
-.. .. |Maintenance yes| image:: https://img.shields.io/badge/Maintained%3F-yes-green.svg
-..    :target: https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity
+.. |Maintenance yes| image:: https://img.shields.io/badge/Maintained%3F-yes-green.svg
+   :target: https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity
 
-.. .. |GitHub license| image:: https://img.shields.io/github/license/Naereen/StrapDown.js.svg
-..    :target: https://github.com/bprinty/Flask-Execute/blob/master/LICENSE
+.. |GitHub license| image:: https://img.shields.io/github/license/Naereen/StrapDown.js.svg
+   :target: https://github.com/bprinty/Flask-Execute/blob/master/LICENSE
 
-.. .. |Documentation Status| image:: https://readthedocs.org/projects/Flask-Execute/badge/?version=latest
-..    :target: http://Flask-Execute.readthedocs.io/?badge=latest
+.. |Documentation Status| image:: https://readthedocs.org/projects/Flask-Execute/badge/?version=latest
+   :target: http://Flask-Execute.readthedocs.io/?badge=latest
 
 
 ============================
