@@ -15,7 +15,7 @@
    :target: https://github.com/bprinty/Flask-Execute/blob/master/LICENSE
 
 .. |Documentation Status| image:: https://readthedocs.org/projects/Flask-Execute/badge/?version=latest
-   :target: http://Flask-Execute.readthedocs.io/?badge=latest
+   :target: http://flask-execute.readthedocs.io/?badge=latest
 
 
 ============================
