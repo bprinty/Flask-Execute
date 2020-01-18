@@ -63,8 +63,7 @@ build: clean ## build package
 release: build tag ## release package by pushing tags to github/pypi
 	VER=$(VERSION) && git push origin :$$VER || echo 'Remote tag available'
 	VER=$(VERSION) && git push origin $$VER
-	$(PYTHON) setup.py sdist upload -r pypitest
-	$(PYTHON) setup.py sdist upload -r pypi
+	twine upload --skip-existing dist/*
 
 
 install: clean ## install package using setuptools
