@@ -12,7 +12,7 @@ import time
 from flask import Flask, Blueprint, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
-from flask_celery import Celery, current_task
+from flask_execute import Celery, current_task
 
 from . import SANDBOX
 

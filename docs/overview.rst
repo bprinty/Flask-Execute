@@ -2,7 +2,7 @@
 Overview
 ========
 
-Flask-CeleryStick is a plugin for simplifying the configuration and management of Celery alongside a Flask application. It also slightly changes the paradigm for registering and dispatching celery tasks, exposing an API similar to the ``concurrent.futures`` API for submitting tasks to a separate executor.
+Flask-Execute is a plugin for simplifying the configuration and management of Celery alongside a Flask application. It also slightly changes the paradigm for registering and dispatching celery tasks, exposing an API similar to the ``concurrent.futures`` API for submitting tasks to a separate executor.
 
 Other features of the plugin include:
 

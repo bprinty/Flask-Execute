@@ -3,27 +3,27 @@
 
 .. |Build status| |Code coverage| |Maintenance yes| |GitHub license| |Documentation Status|
 
-.. .. |Build status| image:: https://travis-ci.com/bprinty/Flask-CeleryStick.png?branch=master
-..    :target: https://travis-ci.com/bprinty/Flask-CeleryStick
+.. .. |Build status| image:: https://travis-ci.com/bprinty/Flask-Execute.png?branch=master
+..    :target: https://travis-ci.com/bprinty/Flask-Execute
 
-.. .. |Code coverage| image:: https://codecov.io/gh/bprinty/Flask-CeleryStick/branch/master/graph/badge.svg
-..    :target: https://codecov.io/gh/bprinty/Flask-CeleryStick
+.. .. |Code coverage| image:: https://codecov.io/gh/bprinty/Flask-Execute/branch/master/graph/badge.svg
+..    :target: https://codecov.io/gh/bprinty/Flask-Execute
 
 .. .. |Maintenance yes| image:: https://img.shields.io/badge/Maintained%3F-yes-green.svg
 ..    :target: https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity
 
 .. .. |GitHub license| image:: https://img.shields.io/github/license/Naereen/StrapDown.js.svg
-..    :target: https://github.com/bprinty/Flask-CeleryStick/blob/master/LICENSE
+..    :target: https://github.com/bprinty/Flask-Execute/blob/master/LICENSE
 
-.. .. |Documentation Status| image:: https://readthedocs.org/projects/Flask-CeleryStick/badge/?version=latest
-..    :target: http://Flask-CeleryStick.readthedocs.io/?badge=latest
+.. .. |Documentation Status| image:: https://readthedocs.org/projects/Flask-Execute/badge/?version=latest
+..    :target: http://Flask-Execute.readthedocs.io/?badge=latest
 
 
 ============================
-Flask-CeleryStick
+Flask-Execute
 ============================
 
-Flask-CeleryStick is a plugin for simplifying the configuration and management of Celery alongside a Flask application. It also slightly changes the paradigm for registering and dispatching celery tasks, exposing an API similar to the ``concurrent.futures`` API for submitting tasks to a separate executor.
+Flask-Execute is a plugin for simplifying the configuration and management of Celery alongside a Flask application. It also slightly changes the paradigm for registering and dispatching celery tasks, exposing an API similar to the ``concurrent.futures`` API for submitting tasks to a separate executor.
 
 Other features of the plugin include:
 
@@ -41,22 +41,22 @@ To install the latest stable release via pip, run:
 
 .. code-block:: bash
 
-    $ pip install Flask-CeleryStick
+    $ pip install Flask-Execute
 
 
 Alternatively with easy_install, run:
 
 .. code-block:: bash
 
-    $ easy_install Flask-CeleryStick
+    $ easy_install Flask-Execute
 
 
 To install the bleeding-edge version of the project (not recommended):
 
 .. code-block:: bash
 
-    $ git clone http://github.com/bprinty/Flask-CeleryStick.git
-    $ cd Flask-CeleryStick
+    $ git clone http://github.com/bprinty/Flask-Execute.git
+    $ cd Flask-Execute
     $ python setup.py install
 
 
@@ -68,7 +68,7 @@ To set up an application with the extension, you can register the application di
 .. code-block:: python
 
     from flask import Flask
-    from flask_celery import Celery
+    from flask_execute import Celery
 
     app = Flask(__name__)
     plugin = Celery(app)
@@ -124,7 +124,7 @@ You can also manage state updates within tasks with a more Flask-y syntax:
 
 .. code-block:: python
 
-  from flask_celery import current_task
+  from flask_execute import current_task
 
   def add(a, b):
     current_task.update_state(state='PROGRESS')
@@ -159,16 +159,16 @@ If your application uses the factory pattern with a ``create_app`` function for 
     ~$ FLASK_APP=app:create_app flask celery status
 
 
-For more in-depth discussion on design considerations and how to fully utilize the plugin, see the `User Guide <https://Flask-CeleryStick.readthedocs.io/en/latest/usage.html>`_.
+For more in-depth discussion on design considerations and how to fully utilize the plugin, see the `User Guide <https://Flask-Execute.readthedocs.io/en/latest/usage.html>`_.
 
 
 Documentation
 =============
 
-For more detailed documentation, see the `Docs <https://Flask-CeleryStick.readthedocs.io/en/latest/>`_.
+For more detailed documentation, see the `Docs <https://Flask-Execute.readthedocs.io/en/latest/>`_.
 
 
 Questions/Feedback
 ==================
 
-File an issue in the `GitHub issue tracker <https://github.com/bprinty/Flask-CeleryStick/issues>`_.
+File an issue in the `GitHub issue tracker <https://github.com/bprinty/Flask-Execute/issues>`_.

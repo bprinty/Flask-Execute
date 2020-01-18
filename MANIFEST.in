@@ -3,7 +3,7 @@ include README.rst
 include Makefile
 include requirements.txt
 
-recursive-include flask_celery *
+recursive-include flask_execute *
 recursive-include tests *
 recursive-include docs *
 

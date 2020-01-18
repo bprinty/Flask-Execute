@@ -1,6 +1,6 @@
-=================
-Flask-CeleryStick
-=================
+=============
+Flask-Execute
+=============
 
 
 .. include:: overview.rst

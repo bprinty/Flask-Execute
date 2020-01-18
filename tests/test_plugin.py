@@ -9,7 +9,7 @@
 # -------
 import os
 
-from flask_celery.plugin import Future, FuturePool
+from flask_execute.plugin import Future, FuturePool
 
 from .fixtures import add, task_id
 

@@ -72,7 +72,7 @@ As mentioned in the overview section of the documentation, to configure your app
 .. code-block:: python
 
     from flask import Flask
-    from flask_celery import Celery
+    from flask_execute import Celery
 
     app = Flask(__name__)
     plugin = Celery(app)
@@ -369,7 +369,7 @@ Another divergence from the original Celery API is how ``Task`` objects are refe
 
 .. code-block:: python
 
-  from flask_celery import current_task
+  from flask_execute import current_task
 
   def add(a, b):
     current_task.update_state(state='PROGRESS')
@@ -511,12 +511,12 @@ Accordingly, when using the ``flask`` cli entypoint, you'll need to make sure th
     ~$ FLASK_APP=my_app:create_app flask celery cluster
 
 
-If you really want to invoke celery directly, you must reference ``flask_celery.celery`` as the celery application. This will automatically detect the flask application celery needs to work with using the auto-detection functionality provided by Flask:
+If you really want to invoke celery directly, you must reference ``flask_execute.celery`` as the celery application. This will automatically detect the flask application celery needs to work with using the auto-detection functionality provided by Flask:
 
  .. code-block:: bash
 
     # start worker with celery
-    ~$ celery -A flask_celery.celery worker --loglevel=info
+    ~$ celery -A flask_execute.celery worker --loglevel=info
 
 As alluded to above, if you're using a factory pattern (i.e. with a ``create_app`` function) to create the app, you can reference the application factory at the command-line via environment variable (similar to Flask CLI methods):
 
@@ -526,7 +526,7 @@ As alluded to above, if you're using a factory pattern (i.e. with a ``create_app
     ~$ FLASK_APP="app:create_app" flask celery worker
 
     # using celery directly
-    ~$  FLASK_APP="app:create_app" celery -A flask_celery.celery worker --loglevel=info
+    ~$  FLASK_APP="app:create_app" celery -A flask_execute.celery worker --loglevel=info
 
 
 Configuring Workers
@@ -772,7 +772,7 @@ The code below details how you can override all of these configuration options:
 .. code-block:: python
 
     from flask import Flask
-    from flask_celery import Celery
+    from flask_execute import Celery
     from celery import Task
 
     class MyBaseTask(Task):

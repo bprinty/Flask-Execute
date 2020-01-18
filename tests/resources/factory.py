@@ -10,7 +10,7 @@
 # --------------------------------------------------------
 
 from flask import Flask, Blueprint, jsonify
-from flask_celery import Celery
+from flask_execute import Celery
 from celery.schedules import crontab
 from .. import SANDBOX
 

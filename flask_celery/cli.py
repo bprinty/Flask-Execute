@@ -29,7 +29,7 @@ class cli:
         """
         Run subprocess.popen for executing celery command in background.
         """
-        args = 'celery -A flask_celery.ext.celery {}'.format(cmd).split(' ')
+        args = 'celery -A flask_execute.ext.celery {}'.format(cmd).split(' ')
         return subprocess.Popen(args, stderr=stderr, stdout=stdout, env=os.environ.copy())
 
     @classmethod
@@ -37,7 +37,7 @@ class cli:
         """
         Run subprocess.call for executing celery command.
         """
-        args = 'celery -A flask_celery.ext.celery {}'.format(cmd).split(' ')
+        args = 'celery -A flask_execute.ext.celery {}'.format(cmd).split(' ')
         return subprocess.call(args, stderr=stderr, stdout=stdout, env=os.environ.copy())
 
     @classmethod
@@ -45,7 +45,7 @@ class cli:
         """
         Run subprocess.check_output for command.
         """
-        args = 'celery -A flask_celery.ext.celery {}'.format(cmd).split(' ')
+        args = 'celery -A flask_execute.ext.celery {}'.format(cmd).split(' ')
         return subprocess.check_output(args, stderr=stderr, env=os.environ.copy()).decode('utf-8')
 
 

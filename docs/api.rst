@@ -6,28 +6,28 @@ API
 Plugin
 ------
 
-.. autoclass:: flask_celery.Celery
+.. autoclass:: flask_execute.Celery
    :members:
 
-.. autofunction:: flask_celery.plugin.dispatch
+.. autofunction:: flask_execute.plugin.dispatch
 
 
 Futures
 -------
 
-.. autoclass:: flask_celery.futures.Future
+.. autoclass:: flask_execute.futures.Future
    :members:
 
-.. autoclass:: flask_celery.futures.FuturePool
+.. autoclass:: flask_execute.futures.FuturePool
    :members:
 
 
 Managers
 --------
 
-.. autoclass:: flask_celery.managers.TaskManager
+.. autoclass:: flask_execute.managers.TaskManager
    :members:
 
 
-.. autoclass:: flask_celery.managers.CommandManager
+.. autoclass:: flask_execute.managers.CommandManager
    :members:
