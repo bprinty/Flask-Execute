@@ -48,7 +48,7 @@ setup(
     include_package_data=True,
     platforms="any",
     install_requires=requirements,
-    keywords=[config.__pkg__, 'flask', 'plugin', 'scaffold'],
+    keywords=[config.__pkg__, 'flask', 'celery', 'executor', 'dask', 'distributed', 'futures', 'concurrent.futures', 'remote', 'executor', 'flask-celery', 'flask_celery'],
     classifiers=[
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
