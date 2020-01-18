@@ -6,11 +6,11 @@ Flask-CeleryStick is a plugin for simplifying the configuration and management o
 
 Other features of the plugin include:
 
-* Automatic spin-up of local workers, queues, and scheduling via configuration.
+* Automatic spin-up of local workers, queues, schedulers, and monitoring tools via configuration.
 * Automatic application context wrapping for celery workers.
 * Simpler API for submitting tasks to workers that doesn't require pre-registration of tasks.
 * Result object API similar to ``concurrent.futures.Future`` API.
-* Flask CLI commands for status checking, spinning up workers, a worker cluster, and `flower <https://flower.readthedocs.io/en/latest/>`_ monitor.
+* Flask CLI wrapper around the ``celery`` command that automatically wraps celery commands with an application context.
 
 The Flask `documentation <https://flask.palletsprojects.com/en/1.1.x/patterns/celery/>`_ details how to configure Celery with Flask without this plugin, and readers are encouraged to check out that documentation before working with this plugin.
 

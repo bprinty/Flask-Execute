@@ -48,7 +48,11 @@ setup(
     include_package_data=True,
     platforms="any",
     install_requires=requirements,
-    keywords=[config.__pkg__, 'flask', 'celery', 'executor', 'dask', 'distributed', 'futures', 'concurrent.futures', 'remote', 'executor', 'flask-celery', 'flask_celery'],
+    keywords=[
+        config.__pkg__.lower(), 'flask', 'celery', 'executor', 'execute',
+        'dispatch', 'dask', 'distributed', 'futures', 'concurrent.futures',
+        'remote', 'executor', 'flask-celery', 'task', 'queue'
+    ],
     classifiers=[
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
