@@ -40,8 +40,8 @@ lint: ## check style with flake8
 
 
 test: ## run tests for package
-	$(PYTHON) -m pytest tests/isolated/test_direct.py
-	$(PYTHON) -m pytest tests/isolated/test_factory.py
+	# $(PYTHON) -m pytest tests/isolated/test_direct.py
+	# $(PYTHON) -m pytest tests/isolated/test_factory.py
 	$(PYTHON) -m pytest tests
 
 

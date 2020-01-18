@@ -11,8 +11,8 @@ install:
   - pip install -r requirements.txt
 
 script:
-  - pytest tests/isolated/test_direct.py
-  - pytest tests/isolated/test_factory.py
+#   - pytest tests/isolated/test_direct.py
+#   - pytest tests/isolated/test_factory.py
   - pytest
 
 after_success:
