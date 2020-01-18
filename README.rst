@@ -3,27 +3,27 @@
 
 .. |Build status| |Code coverage| |Maintenance yes| |GitHub license| |Documentation Status|
 
-.. .. |Build status| image:: https://travis-ci.com/bprinty/Flask-Celery.png?branch=master
-..    :target: https://travis-ci.com/bprinty/Flask-Celery
+.. .. |Build status| image:: https://travis-ci.com/bprinty/Flask-CeleryStick.png?branch=master
+..    :target: https://travis-ci.com/bprinty/Flask-CeleryStick
 
-.. .. |Code coverage| image:: https://codecov.io/gh/bprinty/Flask-Celery/branch/master/graph/badge.svg
-..    :target: https://codecov.io/gh/bprinty/Flask-Celery
+.. .. |Code coverage| image:: https://codecov.io/gh/bprinty/Flask-CeleryStick/branch/master/graph/badge.svg
+..    :target: https://codecov.io/gh/bprinty/Flask-CeleryStick
 
 .. .. |Maintenance yes| image:: https://img.shields.io/badge/Maintained%3F-yes-green.svg
 ..    :target: https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity
 
 .. .. |GitHub license| image:: https://img.shields.io/github/license/Naereen/StrapDown.js.svg
-..    :target: https://github.com/bprinty/Flask-Celery/blob/master/LICENSE
+..    :target: https://github.com/bprinty/Flask-CeleryStick/blob/master/LICENSE
 
-.. .. |Documentation Status| image:: https://readthedocs.org/projects/Flask-Celery/badge/?version=latest
-..    :target: http://Flask-Celery.readthedocs.io/?badge=latest
+.. .. |Documentation Status| image:: https://readthedocs.org/projects/Flask-CeleryStick/badge/?version=latest
+..    :target: http://Flask-CeleryStick.readthedocs.io/?badge=latest
 
 
 ============================
-Flask-Celery
+Flask-CeleryStick
 ============================
 
-Flask-Celery is a plugin for simplifying the configuration and management of celery integrations.
+Flask-CeleryStick is a plugin for simplifying the configuration and management of celery integrations.
 
 MORE LATER
 
@@ -35,22 +35,22 @@ To install the latest stable release via pip, run:
 
 .. code-block:: bash
 
-    $ pip install Flask-Celery
+    $ pip install Flask-CeleryStick
 
 
 Alternatively with easy_install, run:
 
 .. code-block:: bash
 
-    $ easy_install Flask-Celery
+    $ easy_install Flask-CeleryStick
 
 
 To install the bleeding-edge version of the project (not recommended):
 
 .. code-block:: bash
 
-    $ git clone http://github.com/bprinty/Flask-Celery.git
-    $ cd Flask-Celery
+    $ git clone http://github.com/bprinty/Flask-CeleryStick.git
+    $ cd Flask-CeleryStick
     $ python setup.py install
 
 
@@ -79,10 +79,10 @@ The following is a minimal application highlighting most of the major features p
 Documentation
 =============
 
-For more detailed documentation, see the `Docs <https://Flask-Celery.readthedocs.io/en/latest/>`_.
+For more detailed documentation, see the `Docs <https://Flask-CeleryStick.readthedocs.io/en/latest/>`_.
 
 
 Questions/Feedback
 ==================
 
-File an issue in the `GitHub issue tracker <https://github.com/bprinty/Flask-Celery/issues>`_.
+File an issue in the `GitHub issue tracker <https://github.com/bprinty/Flask-CeleryStick/issues>`_.

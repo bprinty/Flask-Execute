@@ -14,7 +14,7 @@ if not hasattr(app, 'extensions') or \
    'celery' not in app.extensions:
     raise AssertionError(
         'Celery plugin has not been registered with application. '
-        'Please see documentation for how to configure Flask-Celery'
+        'Please see documentation for how to configure this extension.'
     )
 
 plugin = app.extensions['celery']

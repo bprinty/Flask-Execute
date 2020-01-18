@@ -238,13 +238,13 @@ class Celery(object):
             self.logs.append(logfile)
 
             # configure worker arg defaults
-            worker_args[worker].setdefault('logfile', level)
+            worker_args[worker].setdefault('loglevel', level)
             worker_args[worker].setdefault('hostname', worker + '@%h')
             worker_args[worker].setdefault('logfile', logfile)
 
             # set up command using worker args
             cmd = 'worker'
-            for key, value in worker_args[worker]:
+            for key, value in worker_args[worker].items():
                 cmd += ' --{}={}'.format(key, value)
 
             # start worker
