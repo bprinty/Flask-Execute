@@ -80,7 +80,7 @@ def stop_processes(timeout=None):
     return
 
 
-def sanitize(args, kwargs):
+def requery(args, kwargs):
     """
     Re-query database models passed into function to enable
     safer threaded operations. This is typically reserved
@@ -90,23 +90,43 @@ def sanitize(args, kwargs):
     # get local db proxy
     db = current_db
 
-    # sanitize function to re-use
+    # re-query processor
     def process(obj):
-        # try to sanitize models via `id` key
         if db is not None:
             if isinstance(obj, db.Model):
                 if hasattr(obj, 'id'):
                     obj = obj.__class__.query.filter_by(id=obj.id).first()
-
-        # sanitize local proxies
-        elif isinstance(obj, LocalProxy):
-            obj = obj._get_current_object()
         return obj
 
+    # arg processing
     args = list(args)
     for idx, arg in enumerate(args):
         args[idx] = process(arg)
 
+    # kwarg processing
+    for key in kwargs:
+        kwargs[key] = process(kwargs[key])
+
+    return args, kwargs
+
+
+def deproxy(args, kwargs):
+    """
+    Query local objects from proxies passed into function for
+    safer threaded operations.
+    """
+    # deproxy processor
+    def process(obj):
+        if isinstance(obj, LocalProxy):
+            obj = obj._get_current_object()
+        return obj
+
+    # arg processing
+    args = list(args)
+    for idx, arg in enumerate(args):
+        args[idx] = process(arg)
+
+    # kwarg processing
     for key in kwargs:
         kwargs[key] = process(kwargs[key])
 
@@ -192,7 +212,7 @@ class Celery(object):
                     with app.app_context():
                         g.task = self.request
                         if self.config['CELERY_SANITIZE_ARGUMENTS']:
-                            args, kwargs = sanitize(args, kwargs)
+                            args, kwargs = requery(args, kwargs)
                         return self.run(*args, **kwargs)
 
         self.controller.Task = ContextTask
@@ -384,8 +404,8 @@ class Celery(object):
             app = __import__(mod, fromlist=[func.__name__])
             func = getattr(app, func.__name__)
 
-        # submit task
-        args = list(args)
+        # submit task and sanitize inputs
+        args, kwargs = deproxy(args, kwargs)
         args.insert(0, func)
         return Future(self.wrapper.apply_async(args=args, kwargs=kwargs, **options))
 
