@@ -704,6 +704,13 @@ New celery configuration keys that specifically change the features of this plug
                                    dicationary options with worker names and
                                    configuration options. Defaults to ``1``
 
+``CELERY_SANITIZE_ARGUMENTS``      Whether or not to automatically attempt to evaluate
+                                   proxied inputs and re-query database models by
+                                   ``id`` property. This is useful if you wish to pass
+                                   database Models or proxy objects to functions running
+                                   on remote executors. This can be turned off if you're
+                                   not passing complex objects via task functions.
+
 ``CELERY_START_LOCAL_WORKERS``     Whether or not to automatically start workers
                                    locally whenever a ``celery.submit()`` call is
                                    made. Defaults to ``True``, and should be set
