@@ -11,16 +11,10 @@ import os
 import atexit
 import subprocess
 from datetime import datetime
-import logging
-import click
-import json
-from functools import reduce
+from functools import wraps
 from flask import g, current_app
-from flask.cli import AppGroup
 from werkzeug.local import LocalProxy
 from celery import Celery as CeleryFactory
-from celery.exceptions import TaskRevokedError
-from celery.schedules import crontab
 
 from .cli import cli, entrypoint
 from .futures import Future, FuturePool
@@ -34,6 +28,14 @@ PROCESSES = {}
 
 # proxies
 # -------
+def get_current_db():
+    if hasattr(current_app, 'extensions') and \
+       'sqlalchemy' in current_app.extensions:
+        return current_app.extensions['sqlalchemy'].db
+    else:
+        return None
+
+
 def get_current_task():
     """
     Local proxy getter for managing current task and
@@ -45,6 +47,7 @@ def get_current_task():
         return g.task
 
 
+current_db = LocalProxy(get_current_db)
 current_task = LocalProxy(get_current_task)
 
 
@@ -76,6 +79,39 @@ def stop_processes(timeout=None):
         PROCESSES[key].terminate()
         PROCESSES[key].wait(timeout=timeout)
     return
+
+
+def sanitize(args, kwargs):
+    """
+    Re-query database models passed into function to enable
+    safer threaded operations. This is typically reserved
+    for api methods that submit asyncronous tasks to a separate
+    executor that uses a different database session.
+    """
+    # get local db proxy
+    db = current_db
+
+    # sanitize function to re-use
+    def process(obj):
+        # try to sanitize models via `id` key
+        if db is not None:
+            if isinstance(obj, db.Model):
+                if hasattr(obj, 'id'):
+                    obj = obj.__class__.query.filter_by(id=obj.id).first()
+
+        # sanitize local proxies
+        elif isinstance(obj, LocalProxy):
+            obj = obj._get_current_object()
+        return obj
+
+    args = list(args)
+    for idx, arg in enumerate(args):
+        args[idx] = process(arg)
+
+    for key in kwargs:
+        kwargs[key] = process(kwargs[key])
+
+    return args, kwargs
 
 
 # plugin
@@ -155,6 +191,7 @@ class Celery(object):
                     app = info.load_app()
                     with app.app_context():
                         g.task = self.request
+                        args, kwargs = sanitize(args, kwargs)
                         return self.run(*args, **kwargs)
 
         self.controller.Task = ContextTask
@@ -346,15 +383,8 @@ class Celery(object):
             app = __import__(mod, fromlist=[func.__name__])
             func = getattr(app, func.__name__)
 
-        # evaluate context locals to avoid pickling issues
+        # submit task
         args = list(args)
-        for idx, arg in enumerate(args):
-            if isinstance(arg, LocalProxy):
-                args[idx] = arg._get_current_object()
-        for key in kwargs:
-            if isinstance(kwargs[key], LocalProxy):
-                kwargs[key] = kwargs[key]._get_current_object()
-
         args.insert(0, func)
         return Future(self.wrapper.apply_async(args=args, kwargs=kwargs, **options))
 
