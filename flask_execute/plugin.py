@@ -11,7 +11,6 @@ import os
 import atexit
 import subprocess
 from datetime import datetime
-from functools import wraps
 from flask import g, current_app
 from werkzeug.local import LocalProxy
 from celery import Celery as CeleryFactory
@@ -150,6 +149,7 @@ class Celery(object):
         self.app.config.setdefault('CELERY_ACCEPT_CONTENT', ['json', 'pickle'])
         self.app.config.setdefault('CELERY_TASK_SERIALIZER', 'pickle')
         self.app.config.setdefault('CELERY_RESULT_SERIALIZER', 'pickle')
+        self.app.config.setdefault('CELERY_SANITIZE_ARGUMENTS', True)
         self.app.config.setdefault('CELERY_ALWAYS_EAGER', False)
         self.app.config.setdefault('CELERY_LOG_LEVEL', 'info')
         self.app.config.setdefault('CELERY_LOG_DIR', os.getcwd())
@@ -191,7 +191,8 @@ class Celery(object):
                     app = info.load_app()
                     with app.app_context():
                         g.task = self.request
-                        args, kwargs = sanitize(args, kwargs)
+                        if self.config['CELERY_SANITIZE_ARGUMENTS']:
+                            args, kwargs = sanitize(args, kwargs)
                         return self.run(*args, **kwargs)
 
         self.controller.Task = ContextTask
