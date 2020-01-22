@@ -59,27 +59,6 @@ def sandbox(request):
     return
 
 
-# @pytest.fixture(scope='session')
-# def server(sandbox):
-#     import requests
-#     from . import SANDBOX
-#     global SETTINGS, APP, CLIENT
-#
-#     # create application
-#     app = create_app()
-#
-#     # create default user
-#     with app.app_context():
-#         db.drop_all()
-#         db.create_all()
-#
-#     proc = subprocess.popen('FLASK_ENV=development FLASK_APP=tests.conftest::create_app exec flask run')
-#     client = requests.Session()
-#
-#     yield client
-#     return
-
-
 @pytest.fixture(scope='session')
 def application(sandbox):
     from . import SANDBOX
