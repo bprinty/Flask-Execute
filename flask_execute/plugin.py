@@ -274,6 +274,32 @@ class Celery(object):
         if not os.path.exists(self.app.config['CELERY_LOG_DIR']):
             os.makedirs(self.app.config['CELERY_LOG_DIR'])
 
+        # start flower (if specified)
+        if self.app.config['CELERY_FLOWER']:
+            logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], 'flower.log')
+            self.logs.append(logfile)
+            self.processes['flower'] = cli.popen(
+                'flower --address={} --port={} --logging={} --log-file-prefix={}'.format(
+                    self.app.config['CELERY_FLOWER_ADDRESS'],
+                    self.app.config['CELERY_FLOWER_PORT'],
+                    self.app.config['CELERY_LOG_LEVEL'],
+                    logfile
+                )
+            )
+
+        # start celerybeat (if specified and tasks registered)
+        if self.app.config['CELERY_SCHEDULER'] and len(self.app.config['CELERYBEAT_SCHEDULE']):
+            logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], 'scheduler.log')
+            pidfile = os.path.join(self.app.config['CELERY_LOG_DIR'], 'scheduler.pid')
+            schedule = os.path.join(self.app.config['CELERY_LOG_DIR'], 'scheduler.db')
+            self.logs.append(logfile)
+            self.processes['scheduler'] = cli.popen(
+                'beat --loglevel={} --logfile={} --pidfile={} --schedule={}'.format(
+                    current_app.config['CELERY_LOG_LEVEL'],
+                    logfile, pidfile, schedule
+                )
+            )
+
         # spawn local workers
         for worker in workers:
 
@@ -307,32 +333,6 @@ class Celery(object):
 
             # start worker
             self.processes[worker] = cli.popen(cmd)
-
-        # start flower (if specified)
-        if self.app.config['CELERY_FLOWER']:
-            logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], 'flower.log')
-            self.logs.append(logfile)
-            self.processes['flower'] = cli.popen(
-                'flower --address={} --port={} --logging={} --log-file-prefix={}'.format(
-                    self.app.config['CELERY_FLOWER_ADDRESS'],
-                    self.app.config['CELERY_FLOWER_PORT'],
-                    self.app.config['CELERY_LOG_LEVEL'],
-                    logfile
-                )
-            )
-
-        # start celerybeat (if specified and tasks registered)
-        if self.app.config['CELERY_SCHEDULER'] and len(self.app.config['CELERYBEAT_SCHEDULE']):
-            logfile = os.path.join(self.app.config['CELERY_LOG_DIR'], 'scheduler.log')
-            pidfile = os.path.join(self.app.config['CELERY_LOG_DIR'], 'scheduler.pid')
-            schedule = os.path.join(self.app.config['CELERY_LOG_DIR'], 'scheduler.db')
-            self.logs.append(logfile)
-            self.processes['scheduler'] = cli.popen(
-                'beat --loglevel={} --logfile={} --pidfile={} --schedule={}'.format(
-                    current_app.config['CELERY_LOG_LEVEL'],
-                    logfile, pidfile, schedule
-                )
-            )
 
         # wait for workers to start
         then, delta = datetime.now(), 0
