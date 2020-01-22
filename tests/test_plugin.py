@@ -11,7 +11,7 @@ import os
 
 from flask_execute.plugin import Future, FuturePool
 
-from .fixtures import add, task_id
+from .fixtures import add, task_id, timeout
 
 
 # tests
@@ -61,9 +61,13 @@ class TestPlugin:
         return
 
     def test_logs(self, celery):
-        for logfile in celery.logs:
-            assert os.path.exists(logfile)
-            assert os.stat(logfile).st_size != 0
+        check = celery.logs.copy()
+        with timeout(5) as to:
+            while not to.expired and len(check):
+                logfile = check[0]
+                if os.path.exists(logfile) and \
+                   os.stat(logfile).st_size != 0:
+                    del check[0]
         return
 
 

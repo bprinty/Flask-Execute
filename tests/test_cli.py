@@ -7,10 +7,9 @@
 
 # imports
 # -------
-import os
-import time
-import requests
 import subprocess
+
+from .fixtures import timeout
 
 
 # session
@@ -41,12 +40,11 @@ class TestCli:
         celery.processes[worker] = subprocess.Popen(args, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
 
         # wait for status checking to return
-        timeout = 0
-        while timeout < 5:
-            output = subprocess.check_output('flask celery status', stderr=subprocess.STDOUT, shell=True).decode('utf-8')
-            if 'online' in output and worker in output:
-                break
-            timeout += 1
+        with timeout(5) as to:
+            while not to.expired:
+                output = subprocess.check_output('flask celery status', stderr=subprocess.STDOUT, shell=True).decode('utf-8')
+                if 'online' in output and worker in output:
+                    break
 
         # assert specific worker is running
         assert worker in output
