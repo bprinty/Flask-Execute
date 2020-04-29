@@ -41,14 +41,12 @@ class cli:
         return subprocess.call(args, stderr=stderr, stdout=stdout, env=os.environ.copy())
 
     @classmethod
-    def output(cls, cmd, stderr=subprocess.STDOUT):
+    def output(cls, cmd, stderr=subprocess.STDOUT, **kwargs):
         """
         Run subprocess.check_output for command.
         """
         args = 'celery -A flask_execute.ext.celery {}'.format(cmd).split(' ')
-        return subprocess.check_output(args, stderr=stderr, env=os.environ.copy()).decode('utf-8')
-
-
+        return subprocess.check_output(args, stderr=stderr, env=os.environ.copy(), **kwargs).decode('utf-8')
 
 
 # entry points

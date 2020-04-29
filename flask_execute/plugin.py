@@ -443,13 +443,13 @@ class Celery(object):
         task = AsyncResult(ident)
         return Future(task)
 
-    def status(self):
+    def status(self, timeout=5):
         """
         Return status of celery server as dictionary.
         """
         workers = {}
         try:
-            output = cli.output('status')
+            output = cli.output('status', timeout=timeout)
             for stat in output.split('\n'):
                 if '@' in stat:
                     worker, health = stat.split(': ')
