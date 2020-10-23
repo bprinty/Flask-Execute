@@ -162,7 +162,7 @@ class Celery(object):
         # defaults
         self.app = app
         self.app.config.setdefault('CELERY_BROKER_URL', 'redis://localhost:6379')
-        self.app.config.setdefault('CELERY_RESULT_BACKEND', 'redis://localhost:6379')
+        self.app.config.setdefault('CELERY_RESULT_BACKEND', 'redis://')
         self.app.config.setdefault('CELERY_WORKERS', 1)
         self.app.config.setdefault('CELERY_START_LOCAL_WORKERS', True)
         self.app.config.setdefault('CELERY_START_TIMEOUT', 10)
