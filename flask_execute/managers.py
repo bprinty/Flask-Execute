@@ -7,6 +7,7 @@
 
 # imports
 # -------
+import re
 import sys
 import json
 import subprocess
@@ -316,7 +317,11 @@ class CommandManager(object):
             return
 
         # make call and parse result
-        data = json.loads(output)
+        output = output.split('\n')[0]
+        try:
+            data = json.loads(output)
+        except json.JSONDecodeError:
+            data = {}
         if isinstance(data, (list, tuple)):
             result = {}
             for item in data:
