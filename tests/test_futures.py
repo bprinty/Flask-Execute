@@ -50,7 +50,7 @@ class TestFuture:
 
     def test_cancel(self, celery):
         # submit long command
-        future = celery.submit(sleep, 3)
+        future = celery.submit(sleep, 10)
         assert future.status == 'PENDING'
         assert future.running()
         assert not future.done()
