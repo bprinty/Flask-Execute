@@ -1,7 +1,7 @@
-codecov>=2.0.15
-pytest>=4.6
-pytest-cov>=2.7.1
-pytest-runner>=4.2
-parameterized>=0.6.1
+codecov
+pytest
+pytest-cov
+pytest-runner
+parameterized
 Flask-SQLAlchemy
 redis
