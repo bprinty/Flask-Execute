@@ -66,6 +66,65 @@ Once the plugin has been registered, you can submit a task using:
     future.add_done_callback(callback)
 
 
+Below details a full example application utilizing this package for a simple ``add`` task:
+
+.. code-block:: python
+
+  from flask import Flask, jsonify
+  from flask_execute import Celery
+
+
+  app = Flask(__name__)
+  celery = Celery()
+  celery.init_app(app)
+  future = None # placeholder
+
+
+  def add(x, y):
+      return x + y
+
+
+  @app.route('/status')
+  def status():
+      """
+      Check status of celery task.
+      """
+      global future
+      if future is None:
+          return jsonify(msg='WAITING')
+      else:
+          return jsonify(msg=future.status)
+
+
+  @app.route('/submit')
+  def submit_add():
+      """
+      Submit add task and return.
+      """
+      global future
+      future = celery.submit(add, 1, 1)
+      return jsonify(msg='Submitted add task')
+
+
+  @app.route('/result')
+  def result_add():
+      """
+      Get result of submitted celery task.
+      """
+      global future
+
+      if future is None:
+          return jsonify(msg='Task must be submitted via /submit.'), 400
+      else:
+          result = future.result(timeout=1)
+          future = None
+          return jsonify(result=result)
+
+
+  if __name__ == '__main__':
+      app.run()
+
+
 Note that this plugin does not require users to pre-register tasks via the ``@celery.task`` decorator. This enables developers to more easily control whether or not task execution happens within the current session or on a separate worker. It also makes the API similar to the API provided by `Dask <https://docs.dask.org/en/latest/>`_ and `concurrent.futures <https://docs.python.org/3/library/concurrent.futures.html>`_. Also note that the ``celery`` command-line tool for spinning up local workers is no longer necessary. If no workers are connected, this plugin will automatically spin them up the first time a ``celery.submit()`` call is made.
 
 Once a task as been submitted, you can monitor the state via:
