@@ -92,7 +92,7 @@ def requery(args, kwargs):
 
     # re-query processor
     def process(obj):
-        if db is not None:
+        if db is not None and hasattr(db, 'Model'):
             if isinstance(obj, db.Model):
                 if hasattr(obj, 'id'):
                     obj = obj.__class__.query.filter_by(id=obj.id).first()
